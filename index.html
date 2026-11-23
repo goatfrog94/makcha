@@ -258,6 +258,10 @@ const ZT = {
   crier:   { name:'울보', hp:5, spd:1.5, dmg:0, cd:1.5, color:'#8c86a8', lines:['흐윽… 흐윽…'] },
   bride:   { name:'웨딩홀의 신부', hp:34, spd:.6, dmg:3, cd:1.5, color:'#ece6f4', lines:['신랑은… 어디…','축가… 불러 주세요…'] },
 };
+// 받침이 있으면 a, 없으면 b (예: 박만석이 / 한유리가)
+function bat(w){ const c = String(w || '').replace(/[^가-힣0-9a-zA-Z]+$/, '').slice(-1); if (!c) return true; const k = c.charCodeAt(0);
+  if (k >= 0xAC00 && k <= 0xD7A3) return (k - 0xAC00) % 28 !== 0; return /[013678]/.test(c); }
+const jo = (w, a, b) => bat(w) ? a : b;
 const zName = z => (z.named && z.named.name) || ZT[z.type].name;
 const zSpd = z => (z.named && z.named.spd) || ZT[z.type].spd;
 const zLines = z => (z.named && z.named.lines) || ZT[z.type].lines;
@@ -1043,7 +1047,7 @@ function newBattle(mapId, partyIds, opts={}){
   S.ghost = null;
   if (C && !def.prologue){ const gid = ghostFor(); const at = gid && (def.walkers && def.walkers.length ? pickR(def.walkers) : pickR(def.spawns[0]));
     if (at){ const ch = CHARS[gid], r = C.people[gid];
-      const z = mkZ('walker', at[0], at[1], { named:{ base:'walker', name:ch.name + '이었던 것', hp:10 + 2*C.act, color:ch.color, ghost:gid, lines:[r.lastSaid || '…', '버스… 기다려…', '같이… 가…'] } });
+      const z = mkZ('walker', at[0], at[1], { named:{ base:'walker', name:ch.name + jo(ch.name,'이었던 것','였던 것'), hp:10 + 2*C.act, color:ch.color, ghost:gid, lines:[r.lastSaid || '…', '버스… 기다려…', '같이… 가…'] } });
       z.hp = z.maxhp = 10 + 2*C.act; S.ghost = gid; } }
   if (def.divers) shuffle(def.divers.at.slice()).slice(0, def.divers.n).forEach(([x,y]) => mkZ('diver', x, y, { asleep:true }));
   for (const [x,y] of def.mimics || []) mkZ('mimic', x, y);
@@ -1251,7 +1255,7 @@ function stepRaider(z,dt){
       S.bossDead = true; S.spared = true;
       if (old) bubble(old, S.mapId === 'base' ? '그만해! 넌 내 부하였어!' : '총 내려! 뒤에 무리가 오는 게 안 보여?', '#fff', 3);
       bubble(z, '…쏘지 마. 항복한다.', '#fff', 3);
-      addLog(`<b style="color:#9ff0c0">${old ? old.name + '의 외침에 ' : ''}${zName(z)}이(가) 무기를 내려놓았어요. 남은 군인들도 항복해요.</b>`);
+      addLog(`<b style="color:#9ff0c0">${old ? old.name + '의 외침에 ' : ''}${zName(z)}${jo(zName(z),'이','가')} 무기를 내려놓았어요. 남은 군인들도 항복해요.</b>`);
       for (const o of [...S.zombies]) if (ZT[o.type].human){ fxText(o.x, o.y-.6, '항복', '#9ff0c0'); S.zombies = S.zombies.filter(q => q !== o); }
       return;
     }
@@ -1525,7 +1529,7 @@ function stepMimic(z,dt){
     const t = pool.sort((a,b) => a.obey - b.obey)[0];
     if (t){ z.lureCd = 12; t.lureT = 6; t.lureBy = z; t.path = []; t.atk = null;
       bubble(z, pick(ZT.mimic.lines), '#ffb3b3', 2.5); bubble(t, '…누구 목소리지?', '#dddddd', 2.5); sfx('groan');
-      addLog(`<b style="color:#ffb3b3">"살려 주세요…" ${t.name}이(가) 목소리 쪽으로 걸어가요! 흉내쟁이를 쓰러뜨리거나 ${t.name}을(를) 조종해서 데려와요.</b>`); }
+      addLog(`<b style="color:#ffb3b3">"살려 주세요…" ${t.name}${jo(t.name,'이','가')} 목소리 쪽으로 걸어가요! 흉내쟁이를 쓰러뜨리거나 ${t.name}${jo(t.name,'을','를')} 조종해서 데려와요.</b>`); }
   }
 }
 // 꾀여 가는 동료 (조종하면 바로 풀려요)
@@ -1696,13 +1700,13 @@ function stepZombie(z,dt){
   if (seen){ const fd = dist(seen,z) || 1; z.face = [(seen.x-z.x)/fd, (seen.y-z.y)/fd]; }
   if (seen){ z.aware = true; z.awareT = Math.max(z.awareT, T.awareKeep); } else if (z.awareT > 0){ z.awareT -= dt; if (z.awareT <= 0) z.aware = false; }
   if (z.named && z.named.guard && !z.active){
-    if (seen && sd <= 3){ z.active = true; bubble(z,'어서 오세요…','#ffb3b3'); addLog(`「${zName(z)}」이(가) 움직여요!`); }
+    if (seen && sd <= 3){ z.active = true; bubble(z,'어서 오세요…','#ffb3b3'); addLog(`「${zName(z)}」${jo(zName(z),'이','가')} 움직여요!`); }
     else { z.mutterT -= dt; if (z.mutterT <= 0 && seen && sd <= 6){ z.mutterT = 5; bubble(z, pick(zLines(z)), '#b9d7a8'); sfx('groan'); } return; }
   }
   if (z.type === 'crier' && seen && sd <= T.sight){
     z.crierT -= dt;
     if (z.crierT <= 0){ const ev = (z.named && z.named.cryEvery) || 8, nz = (z.named && z.named.cryNoise) || 15;
-      z.crierT = ev; bubble(z, z.named ? '📢 '+pick(zLines(z)) : '끼야아아악—!','#ffb3ff',1.5); sfx('scream'); shake(3,250); makeNoise(z.x,z.y,nz,12,'cry'); addLog(`${zName(z)}이(가) 소리를 질러요! 소란 +${nz}`); }
+      z.crierT = ev; bubble(z, z.named ? '📢 '+pick(zLines(z)) : '끼야아아악—!','#ffb3ff',1.5); sfx('scream'); shake(3,250); makeNoise(z.x,z.y,nz,12,'cry'); addLog(`${zName(z)}${jo(zName(z),'이','가')} 소리를 질러요! 소란 +${nz}`); }
   }
   let tgt = null, td = 99, feed = null;
   for (const h of prey()){ const d = dist(h,z); if (d <= .95 && d < td){ if (h.downed && !h.carriedBy){ feed = h; continue; } td = d; tgt = h; } }
@@ -1765,9 +1769,9 @@ function downH(h){
   if (h.box) dropBox(h);
   if (h.carriedBy){ h.carriedBy.carrying = null; h.carriedBy = null; }
   sayK(h,'down'); flash('rgba(120,0,0,.25)', 300);
-  addLog(`<b style="color:#ffb0b0">${h.name}이(가) 쓰러졌어요! 업어서 버스로 데려가야 해요.</b>`);
+  addLog(`<b style="color:#ffb0b0">${h.name}${jo(h.name,'이','가')} 쓰러졌어요! 업어서 버스로 데려가야 해요.</b>`);
   if (!S.firstDown && !h.dog && !FAST && !(C && C.seenCarryTip)){ S.firstDown = true; if (C) C.seenCarryTip = true; S.paused = true;
-    hint(`<b style="color:#ff9b9b;font-size:15px">🆘 ${h.name}이(가) 쓰러졌어요!</b> 쓰러진 사람을 <b>클릭</b>하면(또는 E) 다가가서 <b>3초 동안 붙들어 업어요.</b> 왼쪽 초록 칸까지 데려가면 살아요. 오래 두면 물려요. — <b>스페이스</b>로 다시 시작`, 60000); }
+    hint(`<b style="color:#ff9b9b;font-size:15px">🆘 ${h.name}${jo(h.name,'이','가')} 쓰러졌어요!</b> 쓰러진 사람을 <b>클릭</b>하면(또는 E) 다가가서 <b>3초 동안 붙들어 업어요.</b> 왼쪽 초록 칸까지 데려가면 살아요. 오래 두면 물려요. — <b>스페이스</b>로 다시 시작`, 60000); }
   if (S.ctrl === h) autoCtrl();
 }
 function dropBox(h){ const b = h.box; b.taken = false; b.x = h.x; b.y = h.y; h.box = null; }
@@ -1827,15 +1831,15 @@ function killZ(z,h){
     for (const o of [...S.zombies]) if (o.type === 'drill'){ fxText(o.x, o.y-.6, '흩어짐', '#c9c9ff'); S.zombies = S.zombies.filter(q => q !== o); }
     addLog('<b style="color:#ffd6f0">지휘자가 쓰러졌어요! 박자가 끊기고 줄 맞춘 무리가 흩어져요. 버스로 돌아가요!</b>'); }
   if (z.type === 'bloater'){ S.gas.push({ x:z.x, y:z.y, t:6 }); sfx('hit'); fxText(z.x,z.y-.5,'펑! 독가스','#b5e48c'); addLog('부푼이가 터졌어요! 초록 가스 안에 있으면 1초마다 체력 −1.'); }
-  if (z.named && z.named.leader){ S.bossDead = true; addLog('<b style="color:#9ff0c0">번개 두목이 쓰러졌어요! 남은 약탈단이 무기를 버리고 항복해요. (💊 치료 2번)</b>'); for (const o of [...S.zombies]) if (ZT[o.type].human){ fxText(o.x,o.y-.6,'항복','#9ff0c0'); S.zombies = S.zombies.filter(q => q !== o); } }
-  if (z.named && z.named.commander){ S.bossDead = true; addLog(`<b style="color:#9ff0c0">${zName(z)}이(가) 쓰러졌어요. 남은 군인들이 항복해요.</b>`); for (const o of [...S.zombies]) if (ZT[o.type].human) S.zombies = S.zombies.filter(q => q !== o); }
+  if (z.named && z.named.leader){ S.bossDead = true; addLog('<b style="color:#9ff0c0">번개 두목이 쓰러졌어요! 남은 약탈단이 무기를 버리고 항복해요. (끝나면 💊 치료 2번)</b>'); for (const o of [...S.zombies]) if (ZT[o.type].human){ fxText(o.x,o.y-.6,'항복','#9ff0c0'); S.zombies = S.zombies.filter(q => q !== o); } }
+  if (z.named && z.named.commander){ S.bossDead = true; addLog(`<b style="color:#9ff0c0">${zName(z)}${jo(zName(z),'이','가')} 쓰러졌어요. 남은 군인들이 항복해요.</b>`); for (const o of [...S.zombies]) if (ZT[o.type].human) S.zombies = S.zombies.filter(q => q !== o); }
   if (z.type === 'apc'){ shake(10,600); flash('rgba(255,200,120,.5)',500); sfx('scare'); addLog('<b style="color:#ffe08a">장갑차가 멈췄어요! 해치가 열리고 대장이 기어 나와요.</b>');
     const c = mkZ('soldier', Math.floor(z.x), Math.floor(z.y), { named:{ base:'soldier', name:'장갑차 대장', hp:18, commander:true, lines:['물러서! 명령이다!','남쪽으로 가라고 했잖아!'] }, aware:true }); c.hp = c.maxhp = 18; S.boss = c;
     for (const [dx,dy] of [[1,1],[-1,1],[1,-1]]){ const sx = Math.floor(z.x)+dx, sy = Math.floor(z.y)+dy; if (S.passable(sx,sy)) mkZ('soldier', sx, sy, { aware:true }); } }
   if (z.type === 'mother'){ S.bossDead = true; flash('rgba(255,230,255,.4)',700); sfx('win'); addLog('<b style="color:#ffd6f0">어미가 쓰러졌어요… 환기구가 조용해졌어요. 격리실 쪽에서 사람 목소리가 들려요. 버스로 돌아가요!</b>'); }
   S.decals.push({ x:z.x, y:z.y, r:Math.random() });
-  if (z.named && z.named.ghost){ S.ghostDown = true; addLog(`<b style="color:${z.named.color}">🕯 ${zName(z)}이(가) 쓰러졌어요. …이제 편히 쉬어요.</b>`); }
-  else if (z.named && !S.def.prologue){ addLog(`<b style="color:#ffe08a">명물 「${zName(z)}」을(를) 쓰러뜨렸어요.</b>`);
+  if (z.named && z.named.ghost){ S.ghostDown = true; addLog(`<b style="color:${z.named.color}">🕯 ${zName(z)}${jo(zName(z),'이','가')} 쓰러졌어요. …이제 편히 쉬어요.</b>`); }
+  else if (z.named && !S.def.prologue){ addLog(`<b style="color:#ffe08a">명물 「${zName(z)}」${jo(zName(z),'을','를')} 쓰러뜨렸어요.</b>`);
     if (z.named.drop === 'key'){ for (let y=0;y<H;y++) for (let x=0;x<W;x++) if (S.map[y][x] === 'L') S.map[y][x] = 'D';
       S.fields = {}; S.busField = makeField([[2,8],[2,9],[2,10],[2,11]]); if (S.def.alarm) S.carField = makeField(nearTiles(S.def.alarm)); groundCache = null;
       addLog('<b style="color:#ffe08a">창고 열쇠가 떨어졌어요! 잠긴 문이 열려요.</b>'); fxText(z.x,z.y,'창고 열쇠!','#ffe08a'); } }
@@ -1853,7 +1857,7 @@ function issueOrder(o, only){
   addLog(`${c.name}: "${only ? only.name + ', ' : ''}${ORDER_NAME[o]}!"`);
 }
 function biteH(h, p){ if (h.dog || h.bitten || rng() >= p) return; h.bitten = true; h.known = true; h.doubt = false; S.stats.bites++;
-  bubble(h, '윽… 물렸어…!', '#d9b8ff', 2); addLog(`<b style="color:#d9b8ff">🦠 ${h.name}이(가) 물렸어요! 정류장 두 곳쯤 지나면 변해요.</b>`); }
+  bubble(h, '윽… 물렸어…!', '#d9b8ff', 2); addLog(`<b style="color:#d9b8ff">🦠 ${h.name}${jo(h.name,'이','가')} 물렸어요! 정류장 두 곳을 지나면 변해요.</b>`); }
 function toggleQuiet(){
   if (!S || S.over) return;
   S.quiet = !S.quiet; const g = S.quiet ? 'none' : 'save';
@@ -1865,7 +1869,7 @@ function toggleQuiet(){
 function setOrder(h,o){ h.order = o; h.pending = null; h.atk = null; h.path = []; if (o === 'hold'){ h.holdX = h.x; h.holdY = h.y; } }
 function autoCtrl(){
   const c = active().find(h => h.id === 'man') || active().find(h => !h.dog && !h.noFight) || active()[0];
-  if (c){ S.ctrl = c; addLog(`이제 ${c.name}을(를) 조종해요.`); }
+  if (c){ S.ctrl = c; addLog(`이제 ${c.name}${jo(c.name,'을','를')} 조종해요.`); }
 }
 function boardH(h){
   if (h.boarded) return;
@@ -1888,7 +1892,7 @@ function stepHuman(h,dt){
       if (h.dogT >= 4){ h.downed = false; h.dogT = 0; h.hp = 1; h.limp = true; h.fleeing = true; h.path = []; bubble(h,'깨갱… (절뚝절뚝)','#fff'); addLog('백구가 다리를 절며 일어나 버스로 가요.'); if (S.ctrl === h) autoCtrl(); }
       return; }
     const near = S.zombies.some(z => !z.asleep && dist(z,h) <= 1.0);
-    if (near){ h.adjZT += dt; if (h.adjZT >= T.downBiteSec && !(h.bitten && h.known)){ h.bitten = true; h.known = true; h.doubt = false; S.stats.bites++; addLog(`<b style="color:#d9b8ff">쓰러진 ${h.name}이(가) 물렸어요…</b>`); } }
+    if (near){ h.adjZT += dt; if (h.adjZT >= T.downBiteSec && !(h.bitten && h.known)){ h.bitten = true; h.known = true; h.doubt = false; S.stats.bites++; addLog(`<b style="color:#d9b8ff">쓰러진 ${h.name}${jo(h.name,'이','가')} 물렸어요…</b>`); } }
     else h.adjZT = Math.max(0, h.adjZT - dt);
     return;
   }
@@ -1900,12 +1904,12 @@ function stepHuman(h,dt){
   h.stillT = Math.hypot(h.x-ox, h.y-oy) > .001 ? 0 : h.stillT + dt;
   if (!h.box && !h.carrying && !h.dog && !h.noFight){
     const b = S.boxes.find(b => !b.taken && Math.hypot(b.x-h.x,b.y-h.y) < .7);
-    if (b){ b.taken = true; h.box = b; sfx('pick'); fxText(h.x,h.y-.6,b.name,'#ffe08a'); addLog(`${h.name}이(가) ${b.name}를 들었어요. 버스까지 가져가야 해요.`); }
+    if (b){ b.taken = true; h.box = b; sfx('pick'); fxText(h.x,h.y-.6,b.name,'#ffe08a'); addLog(`${h.name}${jo(h.name,'이','가')} ${b.name}를 들었어요. 버스까지 가져가야 해요.`); }
   }
   // 상자는 버스 문 앞(탑승 칸 둘레 1칸)까지만 와도 건네줘요
-  if (h.box && (inZone(h) || (h.x < 3.9 && h.y > 7.1 && h.y < 12.9))){ S.delivered.push(h.box); addLog(`${h.name}이(가) ${h.box.name}를 버스에 실었어요.`); sfx('pick'); fxText(h.x,h.y-.6,'실었다!','#9ff0c0'); h.box = null; }
+  if (h.box && (inZone(h) || (h.x < 3.9 && h.y > 7.1 && h.y < 12.9))){ S.delivered.push(h.box); addLog(`${h.name}${jo(h.name,'이','가')} ${h.box.name}를 버스에 실었어요.`); sfx('pick'); fxText(h.x,h.y-.6,'실었다!','#9ff0c0'); h.box = null; }
   if (inZone(h)){
-    if (h.carrying){ const c = h.carrying; c.boarded = true; c.carriedBy = null; c.rescued = true; h.carrying = null; sfx('pick'); addLog(`<b style="color:#9ff0c0">${h.name}이(가) ${c.name}을(를) 업고 와서 버스에 태웠어요!</b>`); }
+    if (h.carrying){ const c = h.carrying; c.boarded = true; c.carriedBy = null; c.rescued = true; h.carrying = null; sfx('pick'); addLog(`<b style="color:#9ff0c0">${h.name}${jo(h.name,'이','가')} ${c.name}${jo(c.name,'을','를')} 업고 와서 버스에 태웠어요!</b>`); }
     if (S.ctrl !== h && (h.order === 'bus' || h.fleeing || h.noFight)) boardH(h);
   }
 }
@@ -1916,7 +1920,7 @@ function skills(h,dt){
       if (!(o.doubt && !o.known)){ h.diag[o.id] = 0; continue; }
       if (dist(o,h) <= 1.6){ h.diag[o.id] = (h.diag[o.id]||0) + dt; if (h.diag[o.id] >= 2){ h.diag[o.id] = 0;
         if (o.bitten){ o.known = true; o.doubt = false; addLog(`<b style="color:#d9b8ff">유리: "${o.name}… 물렸어요."</b>`); bubble(h,'…물렸어요.','#d9b8ff'); }
-        else { o.doubt = false; addLog(`유리: "${o.name}은(는) 괜찮아요. 긁힌 거예요."`); bubble(h,'괜찮아요!','#bdf0d2'); } } }
+        else { o.doubt = false; addLog(`유리: "${o.name}${jo(o.name,'은','는')} 괜찮아요. 긁힌 거예요."`); bubble(h,'괜찮아요!','#bdf0d2'); } } }
     }
   }
   if (h.id === 'kwan' && h.kickCd <= 0){
@@ -2034,7 +2038,7 @@ function quirk(h,dt){
 function aiStep(h,dt){
   if (h.noFight){ if (S.def.prologue) return; // 지호: 언제나 버스로
     if (!h.path.length) h.path = pathTo(h, 2, 10); followPath(h, speedOf(h), dt); return; }
-  if (!h.fleeing && h.courage > 0 && h.hp <= h.maxhp*h.courage && nearestZ(h, 2.5)){ h.fleeing = true; S.stats.flee++; sayK(h,'scared'); addLog(`${h.name}이(가) 겁에 질려 버스로 도망가요!`); h.path = []; }
+  if (!h.fleeing && h.courage > 0 && h.hp <= h.maxhp*h.courage && nearestZ(h, 2.5)){ h.fleeing = true; S.stats.flee++; sayK(h,'scared'); addLog(`${h.name}${jo(h.name,'이','가')} 겁에 질려 버스로 도망가요!`); h.path = []; }
   if (h.fleeing || h.order === 'bus'){
     if (!h.path.length){ const zt = [[2,8],[2,9],[2,10],[2,11]].sort((a,b) => Math.hypot(a[0]-h.x,a[1]-h.y)-Math.hypot(b[0]-h.x,b[1]-h.y))[0]; h.path = pathTo(h, zt[0], zt[1]); }
     if (!h.fleeing && selfDefense(h,dt)) return;
@@ -2080,7 +2084,7 @@ function ctrlStep(h,dt){
     const d = h.carryIntent;
     if (!d.downed || d.carriedBy || d.boarded){ h.carryIntent = null; h.carryT = 0; }
     else if (dist(h,d) <= 1.3){ h.path = []; h.carryT += dt;
-      if (h.carryT >= T.carrySec){ h.carrying = d; d.carriedBy = h; h.carryIntent = null; h.carryT = 0; S.stats.carries++; sayK(h,'carry'); addLog(`${h.name}이(가) ${d.name}을(를) 업었어요! 버스로!`); }
+      if (h.carryT >= T.carrySec){ h.carrying = d; d.carriedBy = h; h.carryIntent = null; h.carryT = 0; S.stats.carries++; sayK(h,'carry'); addLog(`${h.name}${jo(h.name,'이','가')} ${d.name}${jo(d.name,'을','를')} 업었어요! 버스로!`); }
       return; }
     else { h.carryT = 0; if (!h.path.length) h.path = pathTo(h, Math.floor(d.x), Math.floor(d.y)); followPath(h, speedOf(h), dt); return; }
   }
@@ -2092,7 +2096,7 @@ function ctrlStep(h,dt){
 function triggerAlarm(h){
   if (S.alarmUsed || !S.def.alarm) return;
   S.alarmUsed = true; S.alarm = { t:T.alarmSec }; sfx('alarm');
-  addLog(`${h.name}이(가) 차 경보기를 울렸어요! 감염자들이 그쪽으로 몰려요. (소란 +${T.alarmNoise})`);
+  addLog(`${h.name}${jo(h.name,'이','가')} 차 경보기를 울렸어요! 감염자들이 그쪽으로 몰려요. (소란 +${T.alarmNoise})`);
   makeNoise(S.def.alarm.x, S.def.alarm.y, T.alarmNoise, 15, 'horn');
 }
 
@@ -2455,7 +2459,7 @@ function doAct(a){
 function carryKey(){
   const c = S.ctrl; if (!c) return;
   if (c.dog){ hint('백구는 사람을 업을 수 없어요.'); return; }
-  if (c.carrying){ const d = c.carrying; d.carriedBy = null; c.carrying = null; d.x = c.x+.4; d.y = c.y; addLog(`${c.name}이(가) ${d.name}을(를) 내려놓았어요.`); return; }
+  if (c.carrying){ const d = c.carrying; d.carriedBy = null; c.carrying = null; d.x = c.x+.4; d.y = c.y; addLog(`${c.name}${jo(c.name,'이','가')} ${d.name}${jo(d.name,'을','를')} 내려놓았어요.`); return; }
   const d = S.humans.filter(h => h.downed && !h.carriedBy && !h.boarded && !h.left).sort((a,b) => dist(a,c)-dist(b,c))[0];
   if (!d){ hint('업을 사람이 없어요.'); return; }
   c.carryIntent = d; c.carryT = 0; c.atk = null; c.path = [];
@@ -2555,7 +2559,7 @@ function routeHtml(){
   const nodes = route(), cur = nodes[C.node], nx = nodes[C.node + 1];
   const gap = hordeGap();
   const hw = C.horde < -.5 ? 10 : (C.horde + .5) * SW;
-  const hl = gap <= 0 ? '🧟 바로 뒤!' : `🧟 대이동 ${gap.toFixed(1)}칸 뒤`;
+  const hl = gap <= 0 ? '🧟 바로 뒤!' : `🧟 대이동 ${+gap.toFixed(1)}칸 뒤`;
   const stops = nodes.map((n,i) => { const cls = i < C.node ? 'done' : i === C.node ? 'cur' : '';
     const ic = i < C.node ? '✓' : n.type === 'choice' && C.branches[n.id] ? '➡' : n.icon;
     return `<div class="rstop ${cls}" style="left:${i*SW}px">${i === C.node ? '<div class="rbus">🚌</div>' : ''}<div class="dot">${ic}</div><div class="nm">${nodeName(n)}</div><div class="hn">${i >= C.node ? nodeHints(n) : ''}</div></div>`; }).join('');
@@ -2577,8 +2581,8 @@ function titleScreen(){
     <ul class="dim">
       <li>정류장을 하나씩 지나며 <b>전투·사건·쉼터</b>를 만나요.</li>
       <li>하루마다 사람 수만큼 <b>식량</b>이 들어요. 다친 사람은 쉬면 나아요.</li>
-      <li>뒤에서 <b>대이동</b>이 쫓아와요. 너무 오래 쉬면 따라잡혀요.</li>
-      <li>물린 사람은 정류장 두 곳쯤 지나면 변해요. 쓰러진 채 두고 온 사람은 돌아오지 않아요.</li>
+      <li>뒤에서 <b>대이동</b>이 쫓아와요. 사건에서 시간을 끌거나 경적을 울리면 가까워지고, 따라잡히면 버스가 포위돼요.</li>
+      <li>물린 사람은 정류장 두 곳을 지나면 변해요. 쓰러진 채 두고 온 사람은 다시는 동료로 돌아오지 않아요.</li>
     </ul>
     <button class="go" id="t-new">새 여정 시작 (프롤로그 「막차」부터)</button>
     <button class="alt" id="t-skip">새 여정 시작 (프롤로그 건너뛰기)</button>
@@ -2627,7 +2631,7 @@ function goNode(){
 function nextNode(){
   C.node++; C.half++;
   C.morning = C.morning || [];
-  for (const id of alive()){ const r = C.people[id]; if (r.status === 'hurt'){ r.sit--; if (r.sit <= 0){ r.status = 'ok'; C.morning.push(`${CHARS[id].name}이(가) 다시 걸을 수 있어요.`); } } }
+  for (const id of alive()){ const r = C.people[id]; if (r.status === 'hurt'){ r.sit--; if (r.sit <= 0){ r.status = 'ok'; C.morning.push(`${CHARS[id].name}${jo(CHARS[id].name,'이','가')} 다시 걸을 수 있어요.`); } } }
   if (has('yoon')){ C.research++; if (C.research >= 3){ C.research -= 3; C.serum++; C.morning.push('💉 윤 박사가 혈청 한 병을 만들었어요. 물린 사람을 살릴 수 있어요.'); } }
   C.horde += T.hordeStep;
   if (C.half % 2 === 0) eatDay();
@@ -2759,24 +2763,26 @@ function applyBattle(){
     r.lastSaid = h.lastSaid || r.lastSaid;
     if (h.left){
       if (h.dog){ r.hp = 3; lines.push('🐕 백구가 버스를 놓쳤지만… 한참 뒤 냄새를 따라 절뚝이며 돌아왔어요.'); continue; }
-      r.status = 'gone'; C.stats.lost++; lines.push(`🕯 <b>${h.name}</b>을(를) ${S.def.name}에 두고 왔어요. 마지막으로 한 말: "${r.lastSaid || '…'}"`); continue;
+      r.status = 'gone'; C.stats.lost++; lines.push(`🕯 <b>${h.name}</b>${jo(h.name,'을','를')} ${S.def.name}에 두고 왔어요. 마지막으로 한 말: "${r.lastSaid || '…'}"`); continue;
     }
     r.hp = Math.max(1, Math.min(CHARS[h.id].hp, h.hp - 2*(h.star || 0)));
-    if (h.rescued){ r.status = 'hurt'; r.sit = 1; r.hp = Math.ceil(CHARS[h.id].hp/2); lines.push(`🩹 ${h.name}은(는) 업혀서 살았지만 중상이에요. 다음 정류장은 쉬어야 해요.`); }
+    if (h.rescued){ r.status = 'hurt'; r.sit = 2; r.hp = Math.ceil(CHARS[h.id].hp/2); lines.push(`🩹 ${h.name}${jo(h.name,'은','는')} 업혀서 살았지만 중상이에요. 다음 정류장은 쉬어야 해요.`); }
     r.doubt = h.doubt && !h.known; r.known = h.known;
-    if (h.bitten && !r.bitten){ r.bitten = true; r.bitLeft = T.biteStops; C.stats.bites++; if (h.known) lines.push(`🦠 <b>${h.name}</b>이(가) 물렸어요. 정류장 두 곳쯤 지나면…`); }
+    if (h.bitten && !r.bitten){ r.bitten = true; r.bitLeft = T.biteStops; C.stats.bites++; if (h.known) lines.push(`🦠 <b>${h.name}</b>${jo(h.name,'이','가')} 물렸어요. 정류장 두 곳을 지나면…`); }
   }
-  const got = { food:0, med:0 };
+  const got = { food:0, med:0 }; let medAsk = 0;
   for (const b of S.delivered){ const L = T.loot[b.kind] || {}; for (const k in L) got[k] += L[k]; if (b.kind === 'food') got.food += [0,2,1,1][C.act] || 0; }
   if (S.bossDead && S.mapId === 'outlet') got.med += 2;
-  C.food += got.food; got.med = treat(got.med);
+  C.food += got.food; medAsk = got.med; got.med = treat(got.med);
   for (const b of S.delivered) if (b.kind === 'part' && !hasPart(b.part)){ C.parts = C.parts || {}; C.parts[b.part] = true; const p = PARTS[b.part];
-    lines.push(`🔧 박만석이 밤새 버스에 <b>${p.icon} ${p.name}</b>을(를) 달았어요. (${p.desc})`); }
+    lines.push(`🔧 박만석이 밤새 버스에 <b>${p.icon} ${p.name}</b>${jo(p.name,'을','를')} 달았어요. (${p.desc})`); }
   if (S.ghost){ C.ghosts[S.ghost] = 'done'; const nm = CHARS[S.ghost].name;
-    lines.push(S.ghostDown ? `🕯 ${nm}이었던 것을 보내 줬어요. 아무도 한동안 말이 없었어요.` : `🕯 ${nm}이었던 것은 아직 어딘가를 헤매요.`); }
+    const was = nm + jo(nm,'이었던 것','였던 것');
+    lines.push(S.ghostDown ? `🕯 ${was}을 보내 줬어요. 아무도 한동안 말이 없었어요.` : `🕯 ${was}을 뒤로하고 떠났어요. 다시는 보지 못했어요.`); }
   if (S.stolen){ C.food = Math.max(0, C.food - 3*S.stolen); lines.push(`🛢 약탈단이 식량을 훔쳐 갔어요. (−${3*S.stolen})`); }
   const gotTxt = Object.entries(got).filter(([,v]) => v).map(([k,v]) => (k === 'med' ? '💊 치료 ' + v + '번' : '🍚 식량 +' + v)).join(' · ');
   if (gotTxt) lines.unshift(`얻은 것: ${gotTxt}`);
+  if (medAsk && !got.med) lines.push('💊 약도 챙겼지만 치료할 사람이 없었어요.');
   if (S.hornUses){ C.horde += .3*S.hornUses; lines.push(`📯 경적을 ${S.hornUses}번 울렸어요. 멀리서 대이동이 그 소리 쪽으로 몸을 틀었어요. (대이동이 가까워졌어요)`); }
   if (C.siegeNow){ C.siegeNow = false; lines.push('무리를 버텨 냈어요. 대이동이 잠시 멀어졌어요.');
     save(); showModal(`<h2>🧟 버텨 냈어요</h2><div class="story">${lines.join('<br>')}</div>${resRow()}<button class="go" id="sg-go">원래 가던 정류장으로</button>`); on('#sg-go', goNode); return; }
@@ -2807,12 +2813,12 @@ function applyBattle(){
 }
 // 밤은 고르지 않아요. 모두 쉬고, 이야기 한 줄을 들은 뒤 다음 정류장 화면 위에 보여요.
 const NIGHT_LINES = [
-  a => `${a}이(가) 창에 머리를 기대고 잠들었어요.`,
-  a => `${a}이(가) 버스 뒷자리에서 작게 콧노래를 불렀어요.`,
-  a => `${a}이(가) 꺼진 휴대폰 화면을 한참 들여다봤어요.`,
+  a => `${a}${jo(a,'이','가')} 창에 머리를 기대고 잠들었어요.`,
+  a => `${a}${jo(a,'이','가')} 버스 뒷자리에서 작게 콧노래를 불렀어요.`,
+  a => `${a}${jo(a,'이','가')} 꺼진 휴대폰 화면을 한참 들여다봤어요.`,
   a => `${a}: "내일은… 좀 덜 무서웠으면 좋겠다."`,
-  a => `${a}이(가) 모두에게 마지막 사탕을 하나씩 나눠 줬어요.`,
-  a => `${a}이(가) 창밖 어둠을 보며 보초를 섰어요.`,
+  a => `${a}${jo(a,'이','가')} 모두에게 마지막 사탕을 하나씩 나눠 줬어요.`,
+  a => `${a}${jo(a,'이','가')} 창밖 어둠을 보며 보초를 섰어요.`,
 ];
 function nightScreen(lines=[]){
   for (const id of alive()) C.people[id].hp = Math.min(CHARS[id].hp, C.people[id].hp + T.regen);
@@ -2823,14 +2829,18 @@ function nightScreen(lines=[]){
 }
 // 약은 쌓아 두지 않아요. 얻는 즉시 가장 다친 사람을 고쳐요.
 function needTreat(){ return alive().some(id => C.people[id].status === 'hurt' || (!CHARS[id].dog && C.people[id].hp < CHARS[id].hp)); }
+let TR = null; // 사건 하나에서 치료를 몇 번 하려 했고 몇 번 했는지
+function medTxt(t){ const tr = TR; TR = null; if (!tr || tr.done >= tr.ask) return t;
+  return t.replace(/💊 치료 \d번/, tr.done ? '💊 치료 ' + tr.done + '번' : '💊 약 (다친 사람 없음)'); }
 function treat(n){
-  let done = 0;
+  let done = 0; if (TR) TR.ask += n;
   for (let i = 0; i < n; i++){
     const hurt = alive().find(id => C.people[id].status === 'hurt');
     if (hurt){ const r = C.people[hurt]; r.status = 'ok'; r.sit = 0; r.hp = Math.max(r.hp, Math.ceil(CHARS[hurt].hp * .7)); done++; continue; }
     const id = alive().filter(id => !CHARS[id].dog && C.people[id].hp < CHARS[id].hp).sort((a,b) => C.people[a].hp/CHARS[a].hp - C.people[b].hp/CHARS[b].hp)[0];
     if (id){ C.people[id].hp = CHARS[id].hp; done++; }
   }
+  if (TR) TR.done += done;
   return done;
 }
 function biteEvent(id, cb){
@@ -2839,25 +2849,24 @@ function biteEvent(id, cb){
     r.status = 'turned'; C.stats.lost++;
     const other = pickR(alive().filter(x => x !== id && !CHARS[x].dog));
     if (other) C.people[other].hp = Math.max(1, C.people[other].hp - 4);
-    showModal(`<h2>🩸 버스 안에서</h2><div class="story">새벽, ${ch.name}이(가) 갑자기 몸을 떨기 시작했어요.
+    showModal(`<h2>🩸 버스 안에서</h2><div class="story">새벽, ${ch.name}${jo(ch.name,'이','가')} 갑자기 몸을 떨기 시작했어요.
 "괜찮아… 괜찮…" 그 말이 끝나기도 전에 눈빛이 바뀌었어요.
-${other ? `${CHARS[other].name}이(가) 몸싸움 끝에 다쳤어요 (−4).` : ''}
-${ch.name}은(는) 버스에서 끌려 나갔어요. 아무도 물린 줄 몰랐어요.</div>
-<div class="dim">💡 "물렸을지도?" 인 사람은 유리가 알아봐요 (전투 중 곁에 2초, 또는 밤에 버스 안에서).</div>
+${other ? `${CHARS[other].name}${jo(CHARS[other].name,'이','가')} 몸싸움 끝에 다쳤어요 (−4).` : ''}
+${ch.name}${jo(ch.name,'은','는')} 버스에서 끌려 나갔어요. 아무도 물린 줄 몰랐어요.</div>
 <button class="go" id="b-ok">…</button>`);
     on('#b-ok', cb); return;
   }
   showModal(`<h2>🦠 ${ch.name}</h2><div class="story">${ch.name}의 열이 펄펄 끓어요. 다들 무슨 뜻인지 알아요.
 ${ch.name}: "${r.lastSaid ? r.lastSaid + ' …' : ''}부탁 하나만 들어줄래요?"</div>
-    ${C.serum > 0 ? `<button class="choice" id="b-3">💉 혈청을 쓴다 (${C.serum}병 남음)<small>윤 박사가 만든 혈청이에요. ${ch.name}을(를) 살릴 수 있어요</small></button>` : ''}
-    <button class="choice" id="b-1">마지막 부탁을 들어주고, 다음 정류장에 내려 준다<small>${ch.name}은(는) 떠나요. 다른 사람들은 마음을 다잡아요 (모두 체력 +2)</small></button>`);
+    ${C.serum > 0 ? `<button class="choice" id="b-3">💉 혈청을 쓴다 (${C.serum}병 남음)<small>윤 박사가 만든 혈청이에요. ${ch.name}${jo(ch.name,'을','를')} 살릴 수 있어요</small></button>` : ''}
+    <button class="choice" id="b-1">마지막 부탁을 들어주고, 다음 정류장에 내려 준다<small>${ch.name}${jo(ch.name,'은','는')} 떠나요. 다른 사람들은 마음을 다잡아요 (모두 체력 +2)</small></button>`);
   on('#b-3', () => { C.serum--; r.bitten = false; r.known = false; r.doubt = false; r.bitLeft = 0;
     showModal(`<h2>💉 혈청</h2><div class="story">윤 박사가 떨리는 손으로 주사를 놓았어요. 한참 뒤, ${ch.name}의 열이 내리기 시작했어요.
 윤 박사: "…됐어요. 됐어요!"</div><button class="go" id="b-ok">다행이다</button>`); on('#b-ok', cb); });
   on('#b-1', () => { r.status = 'gone'; C.stats.lost++; for (const x of alive()) C.people[x].hp = Math.min(CHARS[x].hp, C.people[x].hp + 2);
     const wish = ch.dog ? '' : pick(['"엄마한테 문자 하나만 보내 줘요."','"버스 한 번만 몰아 보고 싶어요."','"남쪽 바다… 꼭 보고 와요."']);
     showModal(`<h2>🕯 작별</h2><div class="story">${ch.name}: ${wish}
-다음 정류장에서 ${ch.name}은(는) 혼자 내렸어요. 버스가 출발할 때까지 손을 흔들었어요.</div><button class="go" id="b-ok">…</button>`); on('#b-ok', cb); });
+다음 정류장에서 ${ch.name}${jo(ch.name,'은','는')} 혼자 내렸어요. 버스가 출발할 때까지 손을 흔들었어요.</div><button class="go" id="b-ok">…</button>`); on('#b-ok', cb); });
 }
 const EVENTS = {
   radio: { title:'📻 라디오', text:`차고지를 빠져나오는데 라디오가 지직거려요.
@@ -2865,7 +2874,7 @@ const EVENTS = {
 같은 말이 녹음처럼 되풀이돼요. 최 순경이 고개를 갸웃해요. "이상하네요. 군 무전 주파수에서 나오는데."`,
     choices:[ { t:'남쪽으로 가자', d:'(이야기)', f:() => '모두 고개를 끄덕였어요. 일단 남쪽이에요.' } ] },
   store: { title:'🏪 털린 편의점', text:'길가 편의점 유리문이 깨져 있어요. 안쪽 선반은 거의 비었는데, 계산대 아래에 상자 하나가 보여요. 그 옆에 사람이 하나 엎드려 있어요.',
-    choices:[ { t:'들어가서 상자를 챙긴다', d:'식량이 생길지도… 엎드린 사람이 걸려요', f:() => { if (rng() < .6){ C.food += 4; return '🍚 식량 +4. 엎드린 사람은 정말 시체였어요.'; } const id = pickR(fighters()); if (id) C.people[id].hp = Math.max(1, C.people[id].hp - 4); return `잠든 척이었어요! ${id ? CHARS[id].name + '이(가) 다쳤어요 (−4)' : ''}. 상자는 비어 있었어요.`; } },
+    choices:[ { t:'들어가서 상자를 챙긴다', d:'식량이 생길지도… 엎드린 사람이 걸려요', f:() => { if (rng() < .6){ C.food += 4; return '🍚 식량 +4. 엎드린 사람은 정말 시체였어요.'; } const id = pickR(fighters()); if (id) C.people[id].hp = Math.max(1, C.people[id].hp - 4); return `잠든 척이었어요! ${id ? CHARS[id].name + jo(CHARS[id].name,'이','가') + ' 다쳤어요 (−4)' : ''}. 상자는 비어 있었어요.`; } },
       { t:'백구를 먼저 들여보낸다', d:'백구가 있어야 해요', need:() => has('baek'), f:() => { C.food += 4; return '백구가 엎드린 사람을 보고 으르렁거렸어요. 조용히 처리하고 🍚 식량 +4.'; } },
       { t:'그냥 지나간다', d:'', f:() => '괜히 위험할 필요 없어요.' } ] },
   police: { title:'🚓 버려진 경찰차', text:'도로 한가운데 경찰차가 문이 열린 채 서 있어요. 무전기가 지직거리고, 트렁크가 살짝 열려 있어요.',
@@ -2877,7 +2886,7 @@ const EVENTS = {
       { t:'유리가 먼저 살펴본다', d:'유리가 있어야 해요', need:() => has('yuri'), f:() => { C.food += 3; treat(1); return '유리가 할머니를 살펴봤어요. 물린 데 없어요. 할머니가 고맙다며 💊 치료 1번, 🍚 식량 +3.'; } },
       { t:'죄송하지만 지나간다', d:'', f:() => '백미러 속 할머니가 점점 작아졌어요.' } ] },
   gas: { title:'🏭 물류 창고', text:'문 닫은 물류 창고예요. 셔터가 반쯤 열려 있고, 안쪽에 라면 상자가 쌓여 있어요. 다 옮기려면 한참 걸려요.',
-    choices:[ { t:'다 옮긴다', d:'시간이 걸려요 (대이동 반나절 가까워짐)', f:() => { C.food += 6; C.horde += T.hordeStep; return '🍚 식량 +6. 한참 걸렸어요. 대이동이 가까워졌어요.'; } },
+    choices:[ { t:'다 옮긴다', d:'시간이 걸려요 (대이동이 한 칸 가까워져요)', f:() => { C.food += 6; C.horde += T.hordeStep; return '🍚 식량 +6. 한참 걸렸어요. 대이동이 가까워졌어요.'; } },
       { t:'그냥 간다', d:'', f:() => '아쉽지만 지나갔어요.' } ] },
   // 2막
   cry: { title:'👶 차 안의 울음', text:'멈춘 차들 사이에서 아기 울음소리가 나요. 뒷좌석 창문에 김이 서려 있어요. 진짜 아기일까요?',
@@ -2886,7 +2895,7 @@ const EVENTS = {
       { t:'레오가 드론으로 먼저 본다', d:'레오가 있어야 해요', need:() => has('leo'), f:() => { C.food += 3; treat(1); return '드론 화면에 진짜 아기와 엄마가 보였어요. 주변도 깨끗해요. 🍚 식량 +3, 💊 치료 1번. 레오: "이건 방송 안 할게요."'; } },
       { t:'지나친다', d:'', f:() => '울음소리가 한참 동안 귀에서 떠나지 않았어요.' } ] },
   bus3km: { title:'📻 3km 뒤의 버스', text:'무전이 들어와요. "도와주세요… 3km 뒤예요. 버스가 퍼졌어요. 아이들이 있어요…"',
-    choices:[ { t:'돌아간다', d:'대이동이 한 칸 가까워져요', f:() => { C.horde += 1; C.food += 4; treat(2); return '어린이집 버스였어요. 선생님이 아이들을 다른 피난 차량에 태우고, 고맙다며 🍚 식량 +4, 💊 치료 2번를 나눠 줬어요. 대이동이 가까워졌어요.'; } },
+    choices:[ { t:'돌아간다', d:'대이동이 한 칸 가까워져요', f:() => { C.horde += 1; C.food += 4; treat(2); return '어린이집 버스였어요. 선생님이 아이들을 다른 피난 차량에 태우고, 고맙다며 먹을 것과 약을 나눠 줬어요. 🍚 식량 +4, 💊 치료 2번. 대이동이 가까워졌어요.'; } },
       { t:'미안하지만 간다', d:'', f:() => '무전기를 껐어요. 아무도 말이 없었어요.' } ] },
   fuelthief: { title:'🍚 사라진 식량', text:'아침에 보니 식량 상자 하나가 비었어요. 누군가 밤에 빼돌린 것 같아요. 몇몇이 칼자국을 흘끔 봐요. (식량 −3)',
     need:() => has('kal'), pre:() => { C.food = Math.max(0, C.food - 3); },
@@ -2907,11 +2916,11 @@ const EVENTS = {
 // 3막 사건
 Object.assign(EVENTS, {
   hungry: { title:'🍚 굶주린 피난민', text:'길가에 피난민 가족이 앉아 있어요. 아이가 버스를 물끄러미 쳐다봐요. 아빠가 머뭇거리다 말해요. "먹을 것 좀… 조금만…"',
-    choices:[ { t:'식량 4를 나눠 준다', d:'우리도 빠듯해요', f:() => { C.food = Math.max(0, C.food - 4); treat(1); return '아이가 주먹밥을 두 손으로 받았어요. 아빠가 고맙다며 가방에서 약 한 통을 꺼내 줬어요. 🍚 −4, 💊 +1'; } },
-      { t:'유리가 아이를 살펴본다', d:'유리가 있어야 해요', need:() => has('yuri'), f:() => { C.food = Math.max(0, C.food - 2); treat(1); return '유리가 아이의 열을 재고 해열제를 먹였어요. 주먹밥도 하나 쥐여 줬어요. 아빠가 답례로 약 한 통을 내밀었어요. 🍚 −2, 💊 +1'; } },
+    choices:[ { t:'식량 4를 나눠 준다', d:'우리도 빠듯해요', f:() => { C.food = Math.max(0, C.food - 4); treat(1); return '아이가 주먹밥을 두 손으로 받았어요. 아빠가 고맙다며 가방에서 약 한 통을 꺼내 줬어요. 🍚 −4, 💊 치료 1번'; } },
+      { t:'유리가 아이를 살펴본다', d:'유리가 있어야 해요', need:() => has('yuri'), f:() => { C.food = Math.max(0, C.food - 2); treat(1); return '유리가 아이의 열을 재고 해열제를 먹였어요. 주먹밥도 하나 쥐여 줬어요. 아빠가 답례로 약 한 통을 내밀었어요. 🍚 −2, 💊 치료 1번'; } },
       { t:'미안하지만 지나간다', d:'', f:() => '백미러 속 아이가 계속 손을 흔들었어요.' } ] },
   buses: { title:'🚌 멈춘 피난 버스들', text:'고갯길 아래 피난 버스 세 대가 서 있어요. 한 대는 경적이 눌린 채 계속 울려요. 그 둘레로 감염자들이 새카맣게 몰려 있어요. 다른 버스에는 짐이 그대로 실려 있어요.',
-    choices:[ { t:'경적이 멎을 때까지 기다렸다 짐을 챙긴다', d:'시간이 걸려요 (대이동 반나절 가까워짐)', f:() => { C.food += 5; C.horde += T.hordeStep; return '한참 뒤 경적이 멎자 무리가 흩어졌어요. 짐칸에서 🍚 식량 +5. 다들 한 가지를 똑똑히 봤어요. 저것들은 소리가 나는 쪽으로만 몰려가요.'; } },
+    choices:[ { t:'경적이 멎을 때까지 기다렸다 짐을 챙긴다', d:'시간이 걸려요 (대이동이 한 칸 가까워져요)', f:() => { C.food += 5; C.horde += T.hordeStep; return '한참 뒤 경적이 멎자 무리가 흩어졌어요. 짐칸에서 🍚 식량 +5. 다들 한 가지를 똑똑히 봤어요. 저것들은 소리가 나는 쪽으로만 몰려가요.'; } },
       { t:'최 순경이 무전을 돌려 본다', d:'최 순경이 있어야 해요', need:() => has('choi'), f:() => { treat(1); return '응답은 없었어요. 대신 같은 녹음이 되풀이돼요. "경적을 울리지 마라. 저것들은 소리를 따라온다. 경적을…" 최 순경이 무전기를 껐어요. 버스 구급함에서 💊 치료 1번.'; } },
       { t:'조용히 지나간다', d:'', f:() => '경적 소리가 산을 넘어서까지 들렸어요. 감염자들은 그 소리를 향해 끝없이 걸어갔어요.' } ] },
   yoonnote: { title:'📓 윤 박사의 노트', text:'윤 박사가 밤새 회색의 피를 들여다봤어요. "회색 씨 피 안에서는 바이러스가 잠들어 있어요. 이걸로 혈청을 만들 수 있어요. 그런데 이상해요. 섬에서 오는 무전이 자꾸 \'면역자를 먼저 보내라\'고 해요. 섬은… 혈청이 필요한 거예요."',
@@ -2920,7 +2929,7 @@ Object.assign(EVENTS, {
       { t:'회색에게 말해 준다', d:'', f:() => { C.research += 1; C.flags.grayKnows = true; return '회색이 한참 말이 없었어요. "…그럼 섬에 가면 난 사람이 아니라 약이 되겠군." (혈청 연구 +1)'; } } ] },
   bellvillage: { title:'🔔 빈 마을', text:'수도원 아래 마을. 집집마다 문이 열려 있고 아무도 없어요. 벽마다 같은 글씨가 적혀 있어요. "종이 울리면 문을 닫아라." 담벼락 아래 할머니 한 분이 혼잣말을 해요. "교주님이 종을 치면 저것들이 딴 데로 가… 대신 딴 데 사람들이 죽지…"',
     choices:[ { t:'마을 창고를 뒤진다', d:'먹을 게 있을지도', f:() => { C.food += 4; if (rng() < .3){ const id = pickR(fighters()); if (id) C.people[id].hp = Math.max(1, C.people[id].hp - 3); return `🍚 식량 +4. 창고 안쪽에 숨어 있던 것이 덤볐어요. ${id ? CHARS[id].name + ' −3' : ''}`; } return '🍚 식량 +4. 창고는 조용했어요.'; } },
-      { t:'할머니에게 수도원 이야기를 묻는다', d:'', f:() => { treat(1); C.flags.bellTip = true; return '할머니: "종탑 셋에서 번갈아 종을 쳐. 줄을 끊으면 종이 멎지. 멀리서 활 같은 걸로…" 할머니가 약 한 봉지를 쥐여 줬어요. 💊 +1'; } } ] },
+      { t:'할머니에게 수도원 이야기를 묻는다', d:'', f:() => { treat(1); C.flags.bellTip = true; return '할머니: "종탑 셋에서 번갈아 종을 쳐. 줄을 끊으면 종이 멎지. 멀리서 활 같은 걸로…" 할머니가 약 한 봉지를 쥐여 줬어요. 💊 치료 1번'; } } ] },
 });
 // 시골 장터: 약과 식량을 바꿔요 (배고픈 3막)
 function marketScreen(head){
@@ -2959,15 +2968,15 @@ ${has('yuri') ? '유리가 고개를 돌렸어요. "저 사람 종 때문에… 
 Object.assign(EVENTS, {
   beach: { title:'🏖 해수욕장', text:'바닷가 해수욕장. 파라솔 아래 피난민들이 버리고 간 아이스박스가 줄지어 있어요. 모래사장 끝 바위 뒤에서 누가 부르는 소리가 나요. "살려 주세요… 여기요…"',
     choices:[ { t:'아이스박스를 챙긴다', d:'', f:() => { C.food += 5; return '🍚 식량 +5. 바위 뒤의 목소리는 한참 동안 같은 말만 되풀이했어요. 똑같은 말투, 똑같은 높이로.'; } },
-      { t:'목소리 쪽으로 가 본다', d:'정말 사람일까요?', f:() => { if (rng() < .5){ treat(2); return '다친 어부가 바위 틈에 끼어 있었어요. 꺼내 주자 구급함을 통째로 줬어요. 💊 +2'; }
-        const id = pickR(fighters()); if (id) C.people[id].hp = Math.max(1, C.people[id].hp - 4); return `바위 뒤에는 아무도 없었어요. 목소리는 사람의 것이 아니었어요. 무언가가 ${id ? CHARS[id].name + '을(를) 덮쳤어요 (−4)' : '덮쳤어요'}. 저것들이… 목소리를 흉내 내요.`; } },
+      { t:'목소리 쪽으로 가 본다', d:'정말 사람일까요?', f:() => { if (rng() < .5){ treat(2); return '다친 어부가 바위 틈에 끼어 있었어요. 꺼내 주자 구급함을 통째로 줬어요. 💊 치료 2번'; }
+        const id = pickR(fighters()); if (id) C.people[id].hp = Math.max(1, C.people[id].hp - 4); return `바위 뒤에는 아무도 없었어요. 목소리는 사람의 것이 아니었어요. 무언가가 ${id ? CHARS[id].name + jo(CHARS[id].name,'을','를') + ' 덮쳤어요 (−4)' : '덮쳤어요'}. 저것들이… 목소리를 흉내 내요.`; } },
       { t:'지나간다', d:'', f:() => '목소리는 버스가 멀어질 때까지 들렸어요.' } ] },
   flooded: { title:'🌊 물 찬 지하 주차장', text:'항구로 가는 지름길인 지하 주차장에 바닷물이 허리까지 찼어요. 물 위로 차 지붕들만 보여요. 지나가면 반나절을 아낄 수 있어요.',
-    choices:[ { t:'물을 건너 지름길로', d:'대이동이 반나절 멀어져요. 물속이 걱정돼요', f:() => { C.horde -= T.hordeStep; if (rng() < .4){ const id = pickR(fighters()); if (id) C.people[id].hp = Math.max(1, C.people[id].hp - 4); return `반나절을 아꼈어요. 그런데 물속에서 무언가가 ${id ? CHARS[id].name + '의 다리를 잡았어요 (−4)' : '다리를 잡았어요'}. (대이동이 멀어졌어요)`; } return '조용히 건넜어요. 반나절을 아꼈어요. (대이동이 멀어졌어요)'; } },
+    choices:[ { t:'물을 건너 지름길로', d:'대이동이 한 칸 멀어져요. 물속이 걱정돼요', f:() => { C.horde -= T.hordeStep; if (rng() < .4){ const id = pickR(fighters()); if (id) C.people[id].hp = Math.max(1, C.people[id].hp - 4); return `시간을 아꼈어요. 그런데 물속에서 무언가가 ${id ? CHARS[id].name + '의 다리를 잡았어요 (−4)' : '다리를 잡았어요'}. (대이동이 멀어졌어요)`; } return '조용히 건넜어요. 시간을 아꼈어요. (대이동이 멀어졌어요)'; } },
       { t:'돌아간다', d:'', f:() => '돌아서 갔어요. 안전하지만 늦었어요.' } ] },
   island: { title:'📻 섬의 응답', text:'등대 무전기에서 또렷한 목소리가 나와요.\n"여기는 마지막 섬 통제소. 피난민은 항구에서 대기하라. 반복한다, 항구에서 대기하라. 면역자가 있다면 먼저 보내라. 면역자는 배에 먼저 태운다."',
     choices:[ { t:'회색을 넘기겠다고 답한다', d:'회색이 있어야 해요. 섬이 보급품을 보내 줘요', need:() => has('gray'), f:() => { C.people.gray.status = 'given'; C.flags.grayGiven = true; C.food += 6; treat(2);
-        return '통제소: "협조에 감사한다. 면역자는 부두로 보내라."\n회색은 아무 말 없이 버스에서 내렸어요. 문 앞에서 한 번 돌아봤어요. "…잘 가라, 막차."\n부두에 섬에서 보낸 보급품이 놓여 있었어요. 🍚 +6, 💊 +2'; } },
+        return '통제소: "협조에 감사한다. 면역자는 부두로 보내라."\n회색은 아무 말 없이 버스에서 내렸어요. 문 앞에서 한 번 돌아봤어요. "…잘 가라, 막차."\n부두에 섬에서 보낸 보급품이 놓여 있었어요. 🍚 식량 +6, 💊 치료 2번'; } },
       { t:'"왜 대기해야 하죠?" 하고 묻는다', d:'최 순경이 있어야 해요', need:() => has('choi'), f:() => { C.flags.askedWhy = true;
         return '최 순경: "항구에 사람이 수만 명입니다. 배는 몇 척입니까?"\n긴 침묵. 그리고 무전 너머에서 누군가 실수로 말했어요. "…폭파 준비는 예정대로—" 무전이 뚝 끊겼어요.'; } },
       { t:'알겠다고만 답한다', d:'', f:() => has('gray') ? '무전이 끊겼어요. 회색이 창밖을 보며 혼잣말을 했어요. "면역자를 먼저… 라."' : '무전이 끊겼어요. 버스 안이 한참 조용했어요.' } ] },
@@ -3062,25 +3071,25 @@ function eventScreen(evId, head){
   showModal(`${head}<h3>${ev.title}</h3><div class="story">${ev.text}</div>
     ${ev.choices.map((c,i) => { const ok = !c.need || c.need(); return `<button class="choice ${ok?'':'off'}" data-i="${i}">${c.t}<small>${c.d}${ok?'':' — 지금은 할 수 없어요'}</small></button>`; }).join('')}`);
   document.querySelectorAll('.choice').forEach(b => b.onclick = () => { const c = ev.choices[+b.dataset.i]; if (c.need && !c.need()) return; sfx('click');
-    const out = c.f(); showModal(`<h3>${ev.title}</h3><div class="story">${out}</div>${resRow()}<button class="go" id="e-go">다음 정류장으로</button>`); on('#e-go', nextNode); });
+    TR = { ask:0, done:0 }; const out = medTxt(c.f()); showModal(`<h3>${ev.title}</h3><div class="story">${out}</div>${resRow()}<button class="go" id="e-go">다음 정류장으로</button>`); on('#e-go', nextNode); });
 }
 function checkpointEvent(head){
   const sus = alive().filter(id => C.people[id].doubt || (C.people[id].known && C.people[id].bitten));
-  const out = msg => { showModal(`<h3>🪖 군 검문소</h3><div class="story">${msg}</div>${resRow()}<button class="go" id="e-go">다음 정류장으로</button>`); on('#e-go', nextNode); };
+  const out = msg => { msg = medTxt(msg); showModal(`<h3>🪖 군 검문소</h3><div class="story">${msg}</div>${resRow()}<button class="go" id="e-go">다음 정류장으로</button>`); on('#e-go', nextNode); };
   const check = () => { const lines = [];
     for (const id of sus){ const r = C.people[id];
       if (r.bitten){ r.status = 'gone'; C.stats.lost++; lines.push(`🦠 ${CHARS[id].name}… 물려 있었어요. 군인들이 데려갔어요. 뒤돌아보지 말라고 했어요.`); }
-      else { r.doubt = false; lines.push(`${CHARS[id].name}은(는) 긁힌 상처였어요. 통과.`); } }
-    treat(1); return (lines.length ? lines.join('\n') + '\n' : '모두 통과했어요.\n') + '군인이 구급약을 건네며 말해요. "남쪽으로 계속 가세요. 멈추지 말고." (💊 +1)'; };
+      else { r.doubt = false; lines.push(`${CHARS[id].name}${jo(CHARS[id].name,'은','는')} 긁힌 상처였어요. 통과.`); } }
+    treat(1); return (lines.length ? lines.join('\n') + '\n' : '모두 통과했어요.\n') + '군인이 구급약을 건네며 말해요. "남쪽으로 계속 가세요. 멈추지 말고." (💊 치료 1번)'; };
   const ch = [];
   if (has('choi')) ch.push({ t:'최 순경이 반장님을 알아본다', d:'최 순경의 개인 이야기', f:() => { treat(2); C.food += 4; C.flags.choiBoss = true;
     return '"…최 순경? 살아 있었구나." 검문소 책임자는 최 순경이 있던 파출소 반장님이었어요. 반장님은 검사 없이 버스를 통과시켜 줬어요. 💊 치료 2번, 🍚 식량 +4.\n떠나기 전, 반장님이 최 순경의 어깨를 잡고 낮게 말했어요.\n"우린 막는 게 아니야. 피난 행렬을 남쪽 항구로 보내라는 명령을 받았어. 전부 다. …이상하지 않냐?"'; } });
-  ch.push({ t:'검사를 받는다', d: sus.length ? `"물렸을지도?" 인 사람: ${sus.map(id => CHARS[id].name).join(', ')}` : '물렸을지도 모르는 사람은 없어요', f:check });
-  if (sus.length) ch.push({ t:'물렸을지도 모르는 사람을 숨긴다', d:'들키면 그 사람을 잃어요', f:() => { if (rng() < .6) return '좌석 밑에 숨겼어요. 군인들은 대충 훑어보고 통과시켰어요.'; const id = sus[0]; C.people[id].status = 'gone'; C.stats.lost++; return `들켰어요. ${CHARS[id].name}이(가) 끌려 내려갔어요.`; } });
+  ch.push({ t:'검사를 받는다', d: sus.length ? `물린 사람: ${sus.map(id => CHARS[id].name).join(', ')}` : '물린 사람은 없어요', f:check });
+  if (sus.length) ch.push({ t:'물린 사람을 숨긴다', d:'들키면 그 사람을 잃어요', f:() => { if (rng() < .6) return '좌석 밑에 숨겼어요. 군인들은 대충 훑어보고 통과시켰어요.'; const id = sus[0]; C.people[id].status = 'gone'; C.stats.lost++; return `들켰어요. ${CHARS[id].name}${jo(CHARS[id].name,'이','가')} 끌려 내려갔어요.`; } });
   showModal(`${head}<h3>🪖 군 검문소</h3><div class="story">방호복을 입은 군인들이 버스를 세워요. "한 명씩 내리세요. 물린 사람은 통과할 수 없습니다."
 그런데 이상해요. 군인들은 피난 차량을 막지 않고, 오히려 빨리 남쪽으로 가라고 손짓해요.</div>
     ${ch.map((c,i) => `<button class="choice" data-i="${i}">${c.t}<small>${c.d}</small></button>`).join('')}`);
-  document.querySelectorAll('.choice').forEach(b => b.onclick = () => { sfx('click'); out(ch[+b.dataset.i].f()); });
+  document.querySelectorAll('.choice').forEach(b => b.onclick = () => { sfx('click'); TR = { ask:0, done:0 }; out(ch[+b.dataset.i].f()); });
 }
 function kalStory(n, head){
   C.preDone[n.id] = true;
@@ -3104,7 +3113,7 @@ function branchScreen(n, head){
 function shelterScreen(head){
   for (const id of alive()){ C.people[id].hp = Math.min(CHARS[id].hp, C.people[id].hp + 6); const r = C.people[id]; if (r.status === 'hurt'){ r.sit = Math.max(0, r.sit-1); if (!r.sit) r.status = 'ok'; } }
   showModal(`${head}<div class="story">고속도로 졸음쉼터예요. 다른 피난 차량은 없어요. 오랜만에 시동을 끄고 다 같이 쉬었어요.
-모두 체력 +6, 중상이 한 곳 빨리 나아요.</div><button class="go" id="sh-go">다음 정류장으로</button>`);
+모두 체력 +6, 중상인 사람은 한 정류장 빨리 나아요.</div><button class="go" id="sh-go">다음 정류장으로</button>`);
   on('#sh-go', nextNode);
 }
 function villageScreen(head){
@@ -3116,7 +3125,7 @@ function villageScreen(head){
   ];
   const draw = () => {
     showModal(`${head}<div class="story">아파트 단지가 컨테이너와 철망으로 둘러싸인 요새가 됐어요. 경비대장이 말해요. "식량이면 뭐든 바꿔 주지. 혈청? 딱 한 병 있어. 비싸."
-오랜만에 문 잠긴 곳에서 쉬었어요. 모두 체력 +6, 중상이 한 곳 빨리 나아요.</div>
+오랜만에 문 잠긴 곳에서 쉬었어요. 모두 체력 +6, 중상인 사람은 한 정류장 빨리 나아요.</div>
       ${resRow()}<h3>거래 (식량으로)</h3>
       ${trades.map(t => `<button class="choice ${t.ok()?'':'off'}" data-t="${t.id}">${t.name}<small>식량 ${t.cost}</small></button>`).join('')}
       <button class="go" id="v-go">다음 정류장으로</button>`);
