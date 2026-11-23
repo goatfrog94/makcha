@@ -4,7 +4,7 @@
 window.botPlay = function(maxSec = 300){
   DBG.fast(true);
   const S = DBG.S, A = DBG.api;
-  const goal = b => S.def.goalKinds ? S.def.goalKinds.includes(b.kind) : (b.kind !== 'bonus' && (b.kind !== 'med' || S.mapId === 'school'));
+  const goal = b => S.def.goalKinds ? S.def.goalKinds.includes(b.kind) : (b.kind !== 'bonus' && b.kind !== 'part' && (b.kind !== 'med' || S.mapId === 'school'));
   const done = () => S.bossDead || (S.obj === 'loot' && S.delivered.filter(goal).length >= S.need) || (S.obj === 'hold' && S.holdDone);
   const rescue = c => { const d = S.humans.find(h => h.downed && !h.carriedBy && !h.boarded && !h.left && !h.dog && A.dist(h,c) < 8); if (d && !c.carrying){ c.carryIntent = d; return true; } return false; };
   S.paused = false;
@@ -23,7 +23,7 @@ window.botPlay = function(maxSec = 300){
     }
     DBG.run(1); t++;
     if (S.cultOut && !cultAt) cultAt = t;
-    if (done() && A.active().every(h => h.x < 3.5 || h.noFight)){ DBG.depart(); DBG.depart(); }
+    if (done() && A.active().every(h => h.x < 2.95 || h.noFight)){ DBG.depart(); DBG.depart(); }
   }
   if (!S.over){ DBG.order('bus'); const c = S.ctrl; if (c && !c.downed) DBG.moveCtrl(2, 9); DBG.run(25); DBG.depart(); DBG.depart(); }
   return [S.mapId, Math.round(S.t) + '초', S.success ? '성공' : '실패(' + (S.why || '시간') + ')', '쓰러짐' + S.stats.downs, '두고옴' + S.humans.filter(h => h.left).length, '무리' + S.stats.hordes, cultAt ? '교주등장' + cultAt + '초' : '', S.spared ? '항복' : ''].join(' ');
