@@ -52,6 +52,22 @@ html,body{margin:0;background:var(--bg);color:var(--text);font-family:"Pretendar
 .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:5px 7px;cursor:pointer;min-width:0}
 .card.ctrl{border-color:#fff;box-shadow:0 0 0 1px #fff5 inset}
 .card.gone{opacity:.45}
+#cutin{position:absolute;left:50%;top:8px;transform:translate(-50%,-14px);opacity:0;pointer-events:none;display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;background:rgba(28,18,11,.92);border:2px solid #ffd166;border-radius:6px;font-size:14px;color:#fbefd9;transition:opacity .2s,transform .2s;z-index:5;white-space:nowrap}
+#stage.frz #cv{filter:grayscale(1) contrast(1.15) brightness(.85)}
+#frz{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;z-index:6}
+#frz.show{display:flex}#frz .ct{font-size:30px;font-weight:bold;color:#ffd400;text-shadow:3px 3px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;letter-spacing:1px;animation:stamp .25s ease-out;padding:0 12px;text-align:center}
+#frz .ci{display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.78);border-left:6px solid #ffd400;padding:10px 16px;font-size:19px;color:#ffd400;font-weight:bold;max-width:88%;animation:slidein .2s ease-out;text-shadow:2px 2px 0 #000}
+#frz .ci .face{width:56px;height:56px;flex:none}
+@keyframes stamp{from{transform:scale(1.8);opacity:0}to{transform:scale(1);opacity:1}}@keyframes slidein{from{transform:translateX(-40px);opacity:0}to{transform:none;opacity:1}}
+@media (max-width:980px){#frz .ct{font-size:18px}#frz .ci{font-size:13px}#frz .ci .face{width:36px;height:36px}}
+#live{position:absolute;right:10px;top:44px;width:180px;display:none;flex-direction:column;gap:2px;pointer-events:none;font-size:12px;z-index:4}
+#live.show{display:flex}#live .lh{background:rgba(0,0,0,.7);color:#fff;padding:2px 6px;border-radius:3px;align-self:flex-start}#live .lh b{color:#ff4d4d}
+#live .lc{background:rgba(0,0,0,.5);color:#e8f7ff;padding:1px 6px;border-radius:3px;animation:slidein .25s ease-out;text-shadow:1px 1px 0 #000}
+@media (max-width:980px){#live{width:130px;font-size:10px;top:6px}}
+#cutin.show{opacity:1;transform:translate(-50%,0)}#cutin .face{width:32px;height:32px}#cutin span{color:#ffd166;font-weight:bold}
+.photo{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.25);border:2px solid #8a5a32;border-radius:5px;padding:5px 8px;margin:4px 0;font-size:13px}.photo .face{width:44px;height:44px}
+.quote{font-size:13px;margin:2px 0;padding:3px 8px;border-left:3px solid #ffd166;background:rgba(255,209,102,.06)}
+.album{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px}.photo.sm{font-size:12px;padding:3px 6px;margin:0}.photo.sm .face{width:32px;height:32px}
 .face{display:inline-block;width:28px;height:28px;border-radius:5px;vertical-align:middle;object-fit:cover;image-rendering:pixelated;background:#2a1c13}
 .card .face{float:left;width:36px;height:36px;margin:0 6px 0 -2px}
 .chip .face{width:24px;height:24px;margin:-3px 5px -3px -6px;border-radius:50%}
@@ -206,7 +222,7 @@ body.wood #hint{background:#1c120bdd;border:2px solid var(--wood);color:#fbefd9}
       <button id="logbtn" class="stat" title="기록 보기">📜</button>
     </div>
   </div>
-  <div id="stage"><canvas id="cv"></canvas><div id="danger"></div><div id="ctxbtn"></div><div id="hint"></div></div>
+  <div id="stage"><canvas id="cv"></canvas><div id="cutin"></div><div id="frz"></div><div id="live"></div><div id="danger"></div><div id="ctxbtn"></div><div id="hint"></div></div>
   <div id="dock">
     <div class="dl"><div id="cards"></div></div>
     <div id="side" class="box"><div class="btns" id="orders"></div></div>
@@ -1298,7 +1314,7 @@ function moveDirect(e,tx,ty,spd,dt){
   const s = Math.min(d, spd*dt), nx = e.x+dx/d*s, ny = e.y+dy/d*s;
   if (S.passable(Math.floor(nx),Math.floor(ny))) { e.x = nx; e.y = ny; }
 }
-function speedOf(h){ let s = h.spd; if (h.limp) s *= .45; if (h.tired > 0) s *= .6; if (h.carrying) s *= T.carrySlow; if (h.box && !(h.id === 'cheol' && hasCombo('live'))) s *= T.boxSlow; if (h.box && h.box.kind === 'part') s *= .8; return s; }
+function speedOf(h){ let s = h.spd; if (h.quickT > 0) s *= 1.5; if (h.limp) s *= .45; if (h.tired > 0) s *= .6; if (h.carrying) s *= T.carrySlow; if (h.box && !(h.id === 'cheol' && hasCombo('live'))) s *= T.boxSlow; if (h.box && h.box.kind === 'part') s *= .8; return s; }
 
 /* =====================================================================
    로그·효과·소리
@@ -1306,7 +1322,7 @@ function speedOf(h){ let s = h.spd; if (h.limp) s *= .45; if (h.tired > 0) s *= 
 const FX = []; let shakeFx = null, flashFx = null, logDirty = true;
 function addLog(t){ if (!S) return; S.log.unshift(`<span style="color:#7d8590">${fmtTime(S.t)}</span> ${t}`); if (S.log.length > 60) S.log.pop(); logDirty = true; }
 function fmtTime(t){ const s = Math.floor(t); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
-function bubble(e,text,color='#fff',dur=2.2){ e.bubble = { text, color, until:S.t+dur }; if (e.say) e.lastSaid = text; }
+function bubble(e,text,color='#fff',dur=2.2,gold=false){ e.bubble = { text, color, until:S.t+dur, gold }; if (e.say) e.lastSaid = text; }
 function sayK(h,k){ const a = h.say[k]; if (a && a.length) bubble(h, pick(a)); }
 function fxText(x,y,text,color='#fff'){ FX.push({ k:'text', x, y, text, color, t0:performance.now(), dur:900 }); }
 function fxRing(x,y,r,color){ FX.push({ k:'ring', x, y, r, color, t0:performance.now(), dur:700 }); }
@@ -1315,10 +1331,10 @@ function shake(m,d){ shakeFx = { m, d, end:performance.now()+d }; }
 function flash(c,d){ flashFx = { c, d, end:performance.now()+d }; }
 let AC = null, muted = false;
 function ac(){ if (!AC){ try { AC = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){} } if (AC && AC.state==='suspended') AC.resume(); return AC; }
-function tone({ f=440, t=.1, type='sine', v=.12, slide=0, delay=0 }){ const a = ac(); if (!a || muted || FAST) return; const t0 = a.currentTime+delay;
+function tone({ f=440, t=.1, type='sine', v=.12, slide=0, delay=0 }){ const a = ac(); if (!a || muted || FAST || performance.now() < hushUntil) return; const t0 = a.currentTime+delay;
   const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.setValueAtTime(f,t0); if (slide) o.frequency.linearRampToValueAtTime(Math.max(20,f+slide), t0+t);
   g.gain.setValueAtTime(v,t0); g.gain.exponentialRampToValueAtTime(.001,t0+t); o.connect(g).connect(a.destination); o.start(t0); o.stop(t0+t+.02); }
-function noiseB({ t=.15, v=.4, freq=1500, delay=0 }){ const a = ac(); if (!a || muted || FAST) return; const t0 = a.currentTime+delay;
+function noiseB({ t=.15, v=.4, freq=1500, delay=0 }){ const a = ac(); if (!a || muted || FAST || performance.now() < hushUntil) return; const t0 = a.currentTime+delay;
   const b = a.createBuffer(1, Math.floor(a.sampleRate*t), a.sampleRate), d = b.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = (Math.random()*2-1)*(1-i/d.length);
   const s = a.createBufferSource(); s.buffer = b; const fl = a.createBiquadFilter(); fl.type='lowpass'; fl.frequency.value=freq; const g = a.createGain(); g.gain.setValueAtTime(v,t0); g.gain.exponentialRampToValueAtTime(.001,t0+t);
   s.connect(fl).connect(g).connect(a.destination); s.start(t0); }
@@ -1333,6 +1349,8 @@ const SFX = {
   scream(){ tone({ f:1400, t:.6, type:'sawtooth', v:.05, slide:600 }); tone({ f:1800, t:.5, type:'square', v:.03, slide:-500, delay:.1 }); },
   horn(){ tone({ f:330, t:.7, type:'square', v:.09 }); tone({ f:415, t:.7, type:'square', v:.07 }); },
   alarm(){ for (let i=0;i<4;i++) tone({ f:i%2?950:700, t:.18, type:'square', v:.05, delay:i*.2 }); },
+  ding(){ tone({ f:1175, t:.35, type:'sine', v:.08 }); tone({ f:880, t:.5, type:'sine', v:.08, delay:.28 }); },
+  stamp(){ noiseB({ t:.12, v:.5, freq:300 }); tone({ f:90, t:.2, type:'square', v:.08 }); },
   bark(){ tone({ f:520, t:.08, type:'square', v:.06, slide:-200 }); tone({ f:480, t:.08, type:'square', v:.05, slide:-200, delay:.13 }); },
   pick(){ tone({ f:660, t:.06, type:'square', v:.05 }); tone({ f:990, t:.08, type:'square', v:.05, delay:.07 }); },
   shout(){ tone({ f:220, t:.18, type:'sawtooth', v:.04, slide:40 }); },
@@ -1361,7 +1379,7 @@ function makeNoise(x,y,amt,radius,kind){
   if (S.noise >= T.hordeAt) horde();
 }
 function horde(){
-  S.stats.hordes++; S.noise = T.hordeReset;
+  S.stats.hordes++; S.noise = T.hordeReset; if (!S.crisisAt) S.crisisAt = S.t; liveSay(pick(LIVE_EV.horde), 3);
   for (let i=0;i<T.hordeN;i++) spawnOne(i%3, rng() < .3 ? 'runner' : 'walker');
   flash('rgba(160,0,0,.35)', 600); shake(5, 500); sfx('horde');
   addLog('<b style="color:#ff8a8a">소란이 꽉 찼어요! 사방에서 무리가 몰려와요!</b>');
@@ -1612,7 +1630,7 @@ function priestBell(h,dt){
   if (h.bellCd > 0 || h.downed || h.boarded) return;
   const near = S.zombies.filter(z => !z.asleep && !ZT[z.type].boss && !ZT[z.type].human && dist(z,h) <= 6);
   if (near.length < 3) return;
-  h.bellCd = 18; sfx('bride'); makeNoise(h.x, h.y, 6, 10, 'cry');
+  h.bellCd = 18; sig(h); if (Math.random() < .2){ sfx('pick'); sayQ(h, '띡.', .05); sayQ(h, pick(REACT.priestMiss), 1.3); } else sfx('bride'); makeNoise(h.x, h.y, 6, 10, 'cry');
   for (const z of near){ z.pushT = 3; z.pushFrom = { x:h.x, y:h.y }; }
   quirkSay(h, '물러가라!', `손종: 18초마다 둘레 감염자 ${near.length}마리를 3초 동안 쫓아내요 (소란 +6)`);
 }
@@ -1926,6 +1944,7 @@ function stepBride(z,dt){
 function stepZombie(z,dt){
   if (z.asleep){ const h = outside().find(h => dist(h,z) <= 1.5); if (h) wake(z,h); return; }
   if (z.scripted){ scriptMove(z, dt, 1.3); return; }
+  if (z.named && z.named.ghost && !z.habitDone && outside().some(h => !h.downed && dist(h,z) < 7 && los(z,h))) ghostHabit(z);
   if (z.freezeT > 0){ z.freezeT -= dt; return; }
   z.cd -= dt;
   if (z.type === 'bride'){ stepBride(z,dt); return; }
@@ -2012,7 +2031,8 @@ function downH(h){
   if (h.carrying){ const c = h.carrying; c.carriedBy = null; h.carrying = null; c.x = h.x+.3; }
   if (h.box) dropBox(h);
   if (h.carriedBy){ h.carriedBy.carrying = null; h.carriedBy = null; }
-  sayK(h,'down'); flash('rgba(120,0,0,.25)', 300);
+  sayK(h,'down'); flash('rgba(120,0,0,.25)', 300); liveSay(pick(LIVE_EV.down), 2);
+  { const ha = S.humans.find(o => o.id === 'ha' && o !== h && !o.downed && !o.boarded && !o.left); if (ha){ ha.coverT = 4; sig(ha); bubble(ha,'엄호한다!','#c8e6a0',1.5); } }
   addLog(`<b style="color:#ffb0b0">${h.name}${jo(h.name,'이','가')} 쓰러졌어요! 업어서 버스로 데려가야 해요.</b>`);
   if (!S.firstDown && !h.dog && !FAST && !(C && C.seenCarryTip)){ S.firstDown = true; if (C) C.seenCarryTip = true; S.paused = true;
     hint(`<b style="color:#ff9b9b;font-size:15px">🆘 ${h.name}${jo(h.name,'이','가')} 쓰러졌어요!</b> 쓰러진 사람을 <b>클릭</b>하면(또는 E) 다가가서 <b>3초 동안 붙들어 업어요.</b> 왼쪽 초록 칸까지 데려가면 살아요. 오래 두면 물려요. — <b>스페이스</b>로 다시 시작`, 60000); }
@@ -2043,10 +2063,20 @@ function aiReach(h){ // 감염자를 노리기 시작하는 거리
 function canHit(h,z,w){ const d = dist(h,z); if (w.kind === 'melee') return d <= 1.05; return d <= w.range && los(h,z); }
 function doAttack(h,z,w){
   if (h.noFight) return;
-  h.cd = w.cd;
+  h.cd = w.cd * (h.id === 'ha' && h.coverT > 0 ? .4 : 1);
   const hitP = w.hit - (z.type === 'runner' ? 10 : 0);
   let dmg = ri(w.dmg[0], w.dmg[1]);
-  if (h.id === 'arin' && w.kind === 'bow' && h.stillT >= 2){ dmg *= 2; fxText(h.x,h.y-.6,'조준!','#bfe8ff'); }
+  if (h.id === 'arin' && w.kind === 'bow' && h.stillT >= 2){ dmg *= 2; fxText(h.x,h.y-.6,'조준!','#bfe8ff'); sig(h);
+    { const b = S.humans.find(o => o.id === 'bora' && !o.downed && !o.boarded && !o.left); if (b && S.t > (b.nagCd || 0)){ b.nagCd = S.t + 25; sayQ(b, pick(REACT.bora), .5); if (Math.random() < .5) sayQ(h, pick(REACT.arinBack), 2.4); } } }
+  // 새 대표 기술
+  const boss = ZT[z.type].boss || ZT[z.type].human || ZT[z.type].structure;
+  const ready = cd => { if (S.t < (h.sigT || 0)) return false; h.sigT = S.t + cd; return true; };
+  if (h.id === 'man' && w.kind === 'melee' && ready(15)){ dmg *= 3; if (!boss){ z.pushT = .5; z.pushFrom = { x:h.x, y:h.y }; } fxText(z.x,z.y-.9,'렌치 강타!','#f2c14e'); sig(h); }
+  if (h.id === 'choi' && w.kind === 'gun' && !boss && ready(15)){ z.freezeT = 3; fxText(z.x,z.y-.9,'제압!','#9ec3ff'); sig(h); }
+  if (h.id === 'old' && w.kind === 'gun' && ready(20)){ dmg = boss ? dmg*2 : Math.max(dmg, z.hp); fxText(z.x,z.y-.9,'한 발 저격!','#e8d8a8'); sig(h); }
+  if (h.id === 'bora' && w.kind === 'bow' && ready(12)){ dmg *= 2; fxText(z.x,z.y-.9,'연사!','#bfe8ff'); sig(h); }
+  if (h.id === 'kal' && w.kind === 'melee' && S.t >= (h.sigT || 0)){ const ring = S.zombies.filter(o => o !== z && !o.asleep && !ZT[o.type].boss && !ZT[o.type].human && !ZT[o.type].structure && dist(o,h) <= 1.7);
+    if (ring.length >= 1){ h.sigT = S.t + 14; fxText(h.x,h.y-.9,'각목 휘두르기!','#b9adff'); sig(h); for (const o of ring){ o.hp -= 4; fxText(o.x,o.y-.4,'-4','#ffd36b'); if (o.hp <= 0) killZ(o,h); } } }
   if (h.id === 'arin' && w.kind === 'bow' && hasCombo('hunt')){ const b = S.humans.find(x => x.id === 'baek' && !x.downed && !x.boarded && !x.left); if (b && dist(b,z) <= 4){ dmg *= 2; fxText(z.x,z.y-.9,'사냥 짝!','#bfe8ff'); } }
   if (h.id === 'old' && w.kind === 'gun' && hasCombo('song') && z.freezeT > 0 && !ZT[z.type].boss){ dmg = Math.max(dmg, z.hp); fxText(z.x,z.y-.9,'노래와 저격!','#ffd6f0'); }
   if (h.id === 'kal' && w.kind === 'melee' && hasCombo('bro')) dmg += 1;
@@ -2071,6 +2101,8 @@ function doAttack(h,z,w){
 }
 function killZ(z,h){
   if (!S.zombies.includes(z)) return;
+  if (ZT[z.type].boss) liveSay(pick(LIVE_EV.boss), 6);
+  if (h && h.id){ h.kills = (h.kills||0) + 1; const v = S.humans.find(b => b !== h && !b.boarded && !b.left && dist(b,z) <= 1.8 && (b.downed || b.hp <= b.maxhp*.5)); if (v) pairTalk(h, v, 'save'); }
   S.zombies = S.zombies.filter(o => o !== z);
   act3Kill(z);
   if (z.type === 'conductor'){ S.bossDead = true; flash('rgba(255,240,255,.5)',800); sfx('win'); shake(6,500);
@@ -2101,6 +2133,7 @@ function issueOrder(o, only){
   let okSaid = false;
   for (const h of (only ? [only] : active())){ if (h === c || h.noFight) continue; setOrder(h,o); if (!okSaid && (only || Math.random() < .6)){ sayK(h,'ok'); okSaid = true; } }
   addLog(`${c.name}: "${only ? only.name + ', ' : ''}${ORDER_NAME[o]}!"`);
+  if (o === 'bus' && !only){ sfx('ding'); fxText(2, 6.6, '🔔 띵동!', '#ffd166'); const w = active().filter(h => h !== c && !h.dog && !h.noFight); if (w.length) sayQ(pick(w), pick(['문 닫지 마요!','기사님, 저 아직 안 탔어요!','이번 정류장은 살아서 내립니다!','카드 찍었어요!','내려요! 아니, 타요!']), .5); }
 }
 function biteH(h, p){ if (h.dog || h.bitten || rng() >= p) return; h.bitten = true; h.known = true; h.doubt = false; S.stats.bites++;
   bubble(h, '윽… 물렸어…!', '#d9b8ff', 2); addLog(`<b style="color:#d9b8ff">🦠 ${h.name}${jo(h.name,'이','가')} 물렸어요! 정류장 두 곳을 지나면 변해요.</b>`); }
@@ -2159,18 +2192,19 @@ function stepHuman(h,dt){
   }
   if (!h.box && !h.carrying && !h.dog && !h.noFight){
     const b = S.boxes.find(b => !b.taken && Math.hypot(b.x-h.x,b.y-h.y) < .7);
-    if (b){ b.taken = true; h.box = b; sfx('pick'); fxText(h.x,h.y-.6,b.name,'#ffe08a'); addLog(`${h.name}${jo(h.name,'이','가')} ${b.name}를 들었어요. 버스까지 가져가야 해요.`); }
+    if (b){ b.taken = true; h.box = b; sfx('pick'); if (h.id === 'cheol'){ h.quickT = 3; sig(h); } fxText(h.x,h.y-.6,b.name,'#ffe08a'); addLog(`${h.name}${jo(h.name,'이','가')} ${b.name}를 들었어요. 버스까지 가져가야 해요.`); }
   }
   // 상자는 버스 문 앞(탑승 칸 둘레 1칸)까지만 와도 건네줘요
-  if (h.box && (inZone(h) || (h.x < 3.9 && h.y > 7.1 && h.y < 12.9))){ S.delivered.push(h.box); addLog(`${h.name}${jo(h.name,'이','가')} ${h.box.name}를 버스에 실었어요.`); sfx('pick'); fxText(h.x,h.y-.6,'실었다!','#9ff0c0'); h.box = null; }
+  if (h.box && (inZone(h) || (h.x < 3.9 && h.y > 7.1 && h.y < 12.9))){ S.delivered.push(h.box); addLog(`${h.name}${jo(h.name,'이','가')} ${h.box.name}를 버스에 실었어요.`); sfx('pick'); fxText(h.x,h.y-.6,'실었다!','#9ff0c0'); if (h.id === 'cheol'){ fxText(h.x,h.y-1.2,'🧾 배달 완료!','#ffffff'); if (Math.random() < .6) sayQ(h, pick(REACT.cheol), .3); } h.box = null; }
   if (inZone(h)){
     if (h.carrying){ const c = h.carrying; c.boarded = true; c.carriedBy = null; c.rescued = true; h.carrying = null; sfx('pick'); addLog(`<b style="color:#9ff0c0">${h.name}${jo(h.name,'이','가')} ${c.name}${jo(c.name,'을','를')} 업고 와서 버스에 태웠어요!</b>`); }
     if (S.ctrl !== h && (h.order === 'bus' || h.fleeing || h.noFight)) boardH(h);
   }
 }
 function skills(h,dt){
+  if (h.coverT > 0) h.coverT -= dt; if (h.quickT > 0) h.quickT -= dt;
   if (h.id === 'yuri'){
-    if (h.healCd <= 0){ const t = active().find(o => dist(o,h) <= 1.6 && o.hp <= o.maxhp*.6); if (t){ const b = t.hp; t.hp = Math.min(t.maxhp, t.hp+6); h.healCd = hasCombo('front') ? 5 : 10; fxText(t.x,t.y-.5,'+'+(t.hp-b),'#7fe0a4'); bubble(h,'버텨요!','#ffd1e6',1.2); } }
+    if (h.healCd <= 0){ const t = active().find(o => dist(o,h) <= 1.6 && o.hp <= o.maxhp*.6); if (t){ const b = t.hp; t.hp = Math.min(t.maxhp, t.hp+6); h.heals = (h.heals||0) + (t.hp-b); h.healCd = hasCombo('front') ? 5 : 10; fxText(t.x,t.y-.5,'+'+(t.hp-b),'#7fe0a4'); bubble(h,'버텨요!','#ffd1e6',1.2); sig(h); pairTalk(h,t,'heal'); } }
     for (const o of outside()){
       if (!(o.doubt && !o.known)){ h.diag[o.id] = 0; continue; }
       if (dist(o,h) <= 1.6){ h.diag[o.id] = (h.diag[o.id]||0) + dt; if (h.diag[o.id] >= 2){ h.diag[o.id] = 0;
@@ -2180,19 +2214,19 @@ function skills(h,dt){
   }
   if (h.id === 'kwan' && h.kickCd <= 0){
     const near = S.zombies.filter(z => !z.asleep && !ZT[z.type].boss && !ZT[z.type].human && dist(z,h) <= 1.6);
-    if (near.length >= 3){ h.kickCd = 12; bubble(h,'돌려차기!','#ffd36b',1.2); sfx('hit'); shake(3,200);
+    if (near.length >= 3){ h.kickCd = 12; bubble(h,'돌려차기!','#ffd36b',1.2); sig(h); sfx('hit'); shake(3,200);
       for (const z of near){ z.hp -= 2; if (z.type === 'shield'){ z.freezeT = 2; fxText(z.x,z.y-.8,'넘어짐!','#ffd36b'); } const dx = z.x-h.x, dy = z.y-h.y, d = Math.hypot(dx,dy)||1; for (let i=0;i<8;i++){ const nx = z.x+dx/d*.25, ny = z.y+dy/d*.25; if (!S.passable(Math.floor(nx),Math.floor(ny))) break; z.x = nx; z.y = ny; } if (z.hp <= 0) killZ(z,h); }
       makeNoise(h.x,h.y,1,4,'melee'); }
   }
   if (h.id === 'baek'){
-    for (const z of S.zombies) if (z.asleep && !z.marked && dist(z,h) <= 5){ z.marked = true; bubble(h,'킁킁… 왈! 왈!','#fff',1.6); sfx('bark'); makeNoise(h.x,h.y,3,6,'bark'); addLog('백구가 시체 하나를 보고 으르렁거려요. 뭔가 이상해요.'); break; }
+    for (const z of S.zombies) if (z.asleep && !z.marked && dist(z,h) <= 5){ z.marked = true; h.digT = S.t + 1.6; bubble(h,'킁킁… 왈! 왈!','#fff',1.6); sig(h); sfx('bark'); makeNoise(h.x,h.y,3,6,'bark'); addLog('백구가 시체 하나를 보고 으르렁거려요. 뭔가 이상해요.'); break; }
   }
   if (h.id === 'geum'){
     h.singCd = (h.singCd||0) - dt;
     const near = S.zombies.filter(z => !z.asleep && dist(z,h) <= 5);
-    if (near.length >= 3 && h.singCd <= 0){ h.singCd = 20; sfx('sing'); makeNoise(h.x,h.y,12,10,'cry');
+    if (near.length >= 3 && h.singCd <= 0){ h.singCd = 20; sig(h); sfx('sing'); makeNoise(h.x,h.y,12,10,'cry');
       quirkSay(h,'♪ 라라라~ 한 곡 뽑을게~','흥부자: 감염자가 몰리면 노래해요. 6칸 안 감염자가 4초 멈추지만 소란 +12');
-      for (const z of S.zombies) if (!z.asleep && z.type !== 'bride' && dist(z,h) <= 6) z.freezeT = 4;
+      for (const z of S.zombies) if (!z.asleep && z.type !== 'bride' && dist(z,h) <= 6){ z.freezeT = 4; z.danceT = S.t + 4; }
       breakBeat('song'); }
   }
 }
@@ -2210,6 +2244,270 @@ function selfDefense(h,dt){
   if (z){ const w = weaponFor(h, z); if (h.cd <= 0) doAttack(h,z, canHit(h,z,w) ? w : (h.melee || h.weapon)); return true; }
   return false;
 }
+// ===== 대원 애착: 대표 기술 컷인 · 짝꿍 한마디 · 기념사진 =====
+const SIG = {
+  man:{ name:'렌치 강타', desc:'15초마다 한 방이 세 배, 감염자를 밀쳐요' },
+  yuri:{ name:'응급처치', desc:'곁의 다친 동료를 치료해요' },
+  arin:{ name:'조준 사격', desc:'2초 멈춰 서면 화살이 두 배' },
+  kwan:{ name:'돌려차기', desc:'셋 이상 붙으면 한꺼번에 날려요' },
+  baek:{ name:'킁킁', desc:'시체인 척하는 감염자를 찾아요' },
+  choi:{ name:'제압', desc:'15초마다 맞힌 감염자를 3초 묶어요' },
+  cheol:{ name:'퀵 배달', desc:'상자를 들면 3초 동안 빨라요' },
+  geum:{ name:'한 곡 뽑기', desc:'노래로 둘레 감염자를 4초 멈춰요' },
+  kal:{ name:'각목 휘두르기', desc:'14초마다 둘레를 한꺼번에 쳐요' },
+  old:{ name:'한 발 저격', desc:'20초마다 한 발로 쓰러뜨려요' },
+  leo:{ name:'드론', desc:'숨은 감염자를 찾아요' },
+  gray:{ name:'무시당함', desc:'쓰러진 동료를 알아서 업어요' },
+  ha:{ name:'엄호 사격', desc:'동료가 쓰러지면 4초 동안 빨리 쏴요' },
+  bora:{ name:'연사', desc:'12초마다 화살 두 발' },
+  priest:{ name:'손종', desc:'둘레 감염자를 쫓아내요' },
+};
+function sig(h){
+  if (!S || S.over || !h || !SIG[h.id]) return;
+  h.sigs = (h.sigs || 0) + 1; hushBeat(h); if (Math.random() < .5) liveSay(LIVE_SIG[h.id], 1);
+  if (S.t < (S.cutinUntil || 0) || S.t < (h.cutinCd || 0)) return;
+  S.cutinUntil = S.t + 1.6; h.cutinCd = S.t + 10;
+  const el = document.getElementById('cutin'); if (!el || FAST) return;
+  el.innerHTML = face(h.id) + '<b style="color:' + h.color + '">' + h.name + '</b><span>✦ ' + SIG[h.id].name + '</span>';
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(sig._t); sig._t = setTimeout(() => el.classList.remove('show'), 1500);
+}
+// 짝꿍 한마디: 누가 누구를 치료·업기·구했을 때, 그리고 전투 시작 때
+const PAIR = {
+  heal:{ 'yuri>kwan':'또 다쳤어요? 관장님은 앞에만 서면…', 'yuri>arin':'아린아, 손 줘 봐. 괜찮아.', 'yuri>man':'기사님 쓰러지면 버스는 누가 몰아요!',
+    'yuri>kal':'조폭이면 덜 아파요? 가만있어요.', 'yuri>cheol':'배달은 나중에! 앉아요.', 'yuri>choi':'순경님, 지혈부터요.', 'yuri>old':'어르신, 무리하지 마세요.',
+    'yuri>geum':'목은 괜찮죠? 노래는 해야죠.', 'yuri>leo':'카메라 내려놓고 팔 줘요.', 'yuri>bora':'활 쏘는 손은 지켜야죠.', 'yuri>ha':'중사님, 참지 말고 말해요.' },
+  carry:{ 'man>yuri':'유리 씨, 이번엔 내가 업어!', 'kwan>arin':'아린아, 꽉 잡아라!', 'kal>choi':'순경 양반, 빚 갚는 거요.', 'choi>kal':'…이번 한 번입니다.',
+    'arin>kwan':'관장님… 무거워요…!', 'bora>arin':'아린아, 거의 다 왔어!', 'arin>bora':'언니, 조금만 버텨!', 'ha>old':'대선배님, 후송합니다!', 'old>ha':'중사, 이 정도는 업는다.',
+    'cheol>geum':'누님, 퀵으로 모십니다!', 'geum>cheol':'총각, 영차! 영차!', 'kwan>yuri':'치료사가 쓰러지면 안 되지!', 'man>kwan':'관장님, 살 좀 빼요!' },
+  save:{ 'kwan>arin':'내 뒤에 있어라!', 'arin>kwan':'관장님, 뒤!', 'choi>kal':'제가 엄호합니다.', 'kal>choi':'빚은 이걸로 퉁이다.', 'old>ha':'중사, 정신 차려!',
+    'ha>old':'어르신은 제가 지킵니다.', 'man>yuri':'유리 씨, 괜찮아?', 'geum>cheol':'총각, 조심해!', 'cheol>geum':'누님, 엄호 배달!', 'bora>arin':'아린아, 고개 숙여!',
+    'arin>bora':'언니, 뒤에!', 'kwan>yuri':'유리 씨는 치료만 해요!', 'baek>jiho':'왈!', 'arin>man':'아저씨, 괜찮아요?', 'choi>leo':'찍지 말고 피해요!' },
+};
+// 대사 세 등급: 자주(기본 말) · 가끔(짝 잡담·업기 구시렁, 한 판에 한 번씩 돌려 씀) · 한 번뿐(명대사, 여정 전체에 한 번, 금색 말풍선)
+// 3줄 짝 대화 [첫 사람, 받는 사람, 첫 말, 받는 말, 끝 말] — 전투 시작, 무리가 몰려올 때, 조용할 때
+const PAIR_TALK = [
+  ['man','kal','너 아까 탈 때 카드 찍었냐?','아저씨, 밖에 괴물이 스무 마리예요!','세상이 망해도 무임승차는 안 돼.'],
+  ['cheol','geum','누님, 노래 한 곡 몇 분짜리예요?','3분 30초! 반주 넣어 주게?','아뇨, 3분 넘으면 면이 불어서요.'],
+  ['leo','old','어르신, 방금 그거 썸네일로 써도 돼요?','썸네일이 뭐냐. 적군 암호냐.','잘 터지면 저 치킨 먹어요.'],
+  ['choi','priest','종 친 거, 집회 신고 하셨습니까?','인류가 멸망하는데 신고를 어디다 해!','그래도 소음 기준은 지키셔야죠.'],
+  ['arin','bora','선배, 살아 돌아가면 수행평가 면제일까요?','헛소리 말고 화살 아껴.','국어 수행 아직 안 냈단 말이에요…'],
+  ['kwan','ha','군대에선 발차기 각도 안 배우나?','관장님, 총이 훨씬 빠릅니다.','에이, 낭만이 없네.'],
+  ['kal','cheol','짜장이지.','형님, 짬뽕 시킨 사람이 결국 짜장 뺏어 먹어요.','…지금 그 얘기냐?'],
+  ['geum','kwan','근데 감염자도 박자는 타더라?','앞에나 봐요!','어머, 쟤 어깨 들썩인다니까?'],
+  ['yuri','kwan','관장님, 오늘은 다치지 마요.','그건 장담 못 하지!','그럼 제 일만 늘잖아요!'],
+  ['man','yuri','유리 씨, 오늘도 부탁해.','기사님이나 다치지 마세요.','버스 기사는 안 다쳐. 버스가 다치지.'],
+  ['gray','choi','…나 계속 보고 있지?','네. 계속 볼 겁니다.','…그래, 그게 맞지.'],
+  ['baek','arin','왈!','백구야, 무서우면 내 뒤에 있어.','(꼬리를 흔든다)'],
+  ['priest','yuri','…날 믿지 않는군.','믿을 이유를 보여 주세요.','…종으로 보여 주지.'],
+  ['leo','cheol','배달 브이로그 찍을래요?','구독 누르면요!','…312명 중 한 명 되시는 거예요.'],
+  ['choi','kal','허튼짓하면 바로 수갑입니다.','수갑 아직 있어요? 세상이 망했는데?','…주머니에 있습니다.'],
+  ['old','ha','자네 몇 기인가?','…대선배님이시네요.','나 때는 말이야, 좀비가 없었어.'],
+  ['kwan','arin','아린아, 무서우면 내 뒤에 있어.','관장님 뒤가 제일 위험하던데요.','…그건 맞다.'],
+  ['man','kwan','관장님, 앞은 맡길게요.','걱정 마쇼!','…버스 앞 말고 싸움 앞이요.'],
+];
+const THANKS = ['고마워요!','살았다…','휴…'];
+// 업고 뛸 때 구시렁 (업은 사람 → 업힌 사람 → 업은 사람)
+const CARRY_SAY = {
+  carrier:{ _:['어휴, 밥을 몇 공기를 먹은 거야.','조금만 버텨!','다 왔어, 다 왔어!','허리야…'], man:['꽉 잡아! 급정거 없다!'], kal:['살려 줬으면 가만히 좀 있어.'], cheol:['퀵으로 모십니다! 팁은 사양!'], old:['이 나이에 사람을 업는구먼.'], kwan:['영차! 이 정도는 몸풀기다!'] },
+  carried:{ _:['흔들려서 멀미 나요…','살살 좀…','미안해요…','내려 주면 걸을게요…'], man:['내가 업히면… 버스는 누가…'], kal:['형님들한테 말하지 마라…'], leo:['이거… 라이브 켜 주세요…'], kwan:['…창피하니까 빨리 가.'], baek:['(낑낑)'] },
+};
+// 한 번뿐인 명대사. key: map:지도, with:동료, star(별 받은 뒤), afterLoss(동료를 잃은 뒤), hp1(체력 2 이하), carried(처음 업힘)
+const ONCE = {
+  man:{ 'map:garage':'여기서 22년… 퇴근은 오늘도 못 하네.', carried:'…내 버스에 내가 업혀 타네.', afterLoss:'자리 하나 비었다. …그래도 출발한다.' },
+  yuri:{ 'map:hospital':'여기 내 사물함… 아직 있네.', hp1:'간호사가 환자 되면… 안 되는데.', carried:'…업히는 쪽은 처음이에요.' },
+  arin:{ 'with:bora':'언니… 진짜 언니 맞지?', hp1:'…무서운데, 안 도망갈래.', star:'나… 조금 세진 것 같아.' },
+  kwan:{ hp1:'…방금 사범님 얼굴 봤다.', carried:'관장이 업히다니… 관원들한테 비밀이다.', afterLoss:'내가 앞에 있었어야 했는데.' },
+  baek:{ 'map:farm':'(꼬리가 멈추지 않는다)', carried:'(낑… 작게 핥는다)' },
+  choi:{ 'map:checkpoint':'…반장님, 거기 계세요?', 'with:kal':'같이 싸울 날이 올 줄은 몰랐네요.', hp1:'지원 요청… 아니, 내가 지원이지.' },
+  cheol:{ 'map:alley':'우리 가게… 간판 불이 아직 켜져 있네.', carried:'배달원이 배달당하네…', star:'오늘 배달, 별 다섯 개.' },
+  geum:{ 'map:karaoke':'18번… 아직 저장돼 있으려나.', hp1:'앵콜은… 살아서 할게.', 'with:old':'어르신, 제 노래 한 곡 들어 보실래요?' },
+  kal:{ carried:'…살면서 누구한테 업혀 본 건 처음이네.', 'map:outlet':'형님… 이번엔 안 물러납니다.', afterLoss:'의리는… 살아 있는 놈이 지키는 거다.' },
+  leo:{ 'map:radiotower':'여기서 그 방송이… 녹화 켜 둘게요.', hp1:'여러분… 방송 사고 아닙니다.', star:'오늘 영상은… 편집 안 할래요.' },
+  old:{ 'map:base':'…연병장이 옛날이랑 똑같구먼.', 'with:ha':'자네 같은 후배가 있어 다행이야.', carried:'이 나이에 업혀 보는구먼. 고맙네.' },
+  gray:{ 'map:fishmarket':'섬에 가면… 난 사람일까, 약일까.', carried:'…날 업어 주는 사람도 있네.' },
+  ha:{ 'map:standoff':'명령은… 오늘 여기서 끝냅니다.', 'with:old':'대선배님과 같은 편이라 영광입니다.' },
+  bora:{ hp1:'아린아… 자세 무너지지 마.', star:'전국체전보다 이게 더 떨리네.' },
+  priest:{ afterLoss:'종을 쳐도… 돌아오지 않는군.', carried:'…날 업는 건가. 이상한 사람들이오.' },
+};
+function onceLine(h, key){
+  if (!C || !h || S.def.prologue || (S.onceN || 0) >= 2) return false;
+  const text = ONCE[h.id] && ONCE[h.id][key]; if (!text) return false;
+  C.once = C.once || {}; const k = h.id + ':' + key; if (C.once[k]) return false;
+  C.once[k] = 1; S.onceN = (S.onceN || 0) + 1;
+  (C.quotes = C.quotes || []).push({ id:h.id, text, map:S.def.name });
+  bubble(h, '✨ ' + text, '#ffd166', 3.6, true); addLog('<b style="color:#ffd166">✨ ' + h.name + ': "' + text + '"</b>');
+  return true;
+}
+function sayQ(h, text, delay, gold){ (S.talkQ = S.talkQ || []).push({ h, at:S.t + delay, text, gold }); }
+function pairTalk(a, b, kind){
+  if (!a || !b || a === b || S.over || S.t < (S.talkCd || 0)) return;
+  const line = PAIR[kind] && PAIR[kind][a.id + '>' + b.id]; if (!line) return;
+  S.talkCd = S.t + 7; bubble(a, line, '#ffe9a8', 2.4); addLog('<span style="color:#ffe9a8">' + a.name + ': "' + line + '"</span>');
+  if (kind === 'save' && !b.dog && !b.downed) sayQ(b, pick(THANKS), 1.2);
+}
+function convo(){
+  if (S.t < (S.talkCd || 0)) return false;
+  if (C && S.humans.some(h => C.people[h.id] && C.people[h.id].bitten && C.people[h.id].bitLeft === 1)) return false; // 마지막 길을 가는 사람이 있으면 농담은 쉬어요
+  const here = S.humans.filter(h => !h.downed && !h.boarded && !h.left), ids = here.map(h => h.id), used = (C && C.talked) || [];
+  const ok = PAIR_TALK.filter(p => ids.includes(p[0]) && ids.includes(p[1])); if (!ok.length) return false;
+  const fresh = ok.filter(p => !used.includes(p[0] + p[1])), p = fresh.length ? fresh[Math.floor(Math.random()*fresh.length)] : ok[Math.floor(Math.random()*ok.length)];
+  const a = here.find(h => h.id === p[0]), b = here.find(h => h.id === p[1]);
+  sayQ(a, p[2], 0); sayQ(b, p[3], 2.1); sayQ(a, p[4], 4.3); S.talkCd = S.t + 10;
+  if (C) C.talked = used.filter(k => k !== p[0] + p[1]).concat(p[0] + p[1]).slice(-12);
+  return true;
+}
+function stepTalk(){
+  if (S.def.prologue) return;
+  stepLive(); stepReact(); lastWords();
+  if (S.talkQ && S.talkQ.length) S.talkQ = S.talkQ.filter(q => { if (S.t < q.at) return true;
+    const h = q.h; if (!h.boarded && !h.left && (!h.downed || h.carriedBy)) bubble(h, q.text, '#ffe9a8', 2.4); return false; });
+  if (!S.startTalk && S.t > 3){ S.startTalk = true; convo(); }
+  if (S.crisisAt && !S.crisisTalk && S.t > S.crisisAt + 1.5){ S.crisisTalk = true; convo(); }
+  if (!S.midTalk && !S.crisisAt && S.t > 50){ S.midTalk = true; convo(); }
+  // 명대사: 지도·동료·별·잃은 뒤 (전투 초반 두 번 살펴요)
+  if ((!S.onceA && S.t > 7) || (!S.onceB && S.t > 22)){ if (!S.onceA) S.onceA = true; else S.onceB = true;
+    const here = S.humans.filter(h => !h.downed && !h.boarded && !h.left);
+    const loss = C && (C.stats.lost || 0) > (C.lossSeen || 0);
+    for (const h of here){
+      if (onceLine(h, 'map:' + S.mapId)) break;
+      if (here.some(o => o !== h && onceLine(h, 'with:' + o.id))) break;
+      if (h.star && onceLine(h, 'star')) break;
+      if (loss && onceLine(h, 'afterLoss')){ C.lossSeen = C.stats.lost; break; } } }
+  for (const h of S.humans){
+    if (!h.downed && !h.boarded && h.hp > 0 && h.hp <= 2) onceLine(h, 'hp1');
+    // 업고 뛸 때 구시렁
+    if (h.carrying){ const d = h.carrying;
+      if (!h.grumble || h.grumble.who !== d){ h.grumble = { who:d, n:0, at:S.t + 2.4 }; if (onceLine(d, 'carried')) h.grumble.at += 2.5; }
+      else if (h.grumble.n < 3 && S.t >= h.grumble.at){ const g = h.grumble, sp = g.n % 2 ? d : h, kind = g.n % 2 ? 'carried' : 'carrier';
+        const pool = CARRY_SAY[kind][sp.id] && Math.random() < .6 ? CARRY_SAY[kind][sp.id] : CARRY_SAY[kind]._;
+        if (!(sp.dog && kind === 'carrier')) bubble(sp, pick(pool), '#ffe9a8', 2); g.n++; g.at = S.t + 2.3; } }
+  }
+}
+// 타란티노식 멈춤 화면: 전투 시작 제목 카드 + 대원 첫 등장 자막 (한 판에 최대 3번, 짧게)
+const CHAPTER = {
+  garage:'기름은 언제나 바닥이다', school:'교장 선생님 말씀이 있겠습니다', alley:'짜장면은 식는다', restarea:'호두과자는 못 참지',
+  karaoke:'18번은 남이 부르면 서운하다', sauna:'냉탕과 온탕 사이', wedding:'신부 입장 (하객은 이미 입장)',
+  jam:'정체 12km, 원인 미상', checkpoint:'검문은 형식일 뿐', hospital:'보호자는 밖에서 기다려 주세요', tunnel:'터널에선 전조등을 켭시다',
+  outlet:'오늘만 이 가격, 목숨 포함', base:'민간인은 남쪽으로 이동하라', paddy:'허수아비는 거짓말을 한다', camp:'전지훈련 (무기한 연장)',
+  farm:'할머니 집엔 먹을 게 많다', pass:'100초짜리 영원', mine:'머리 위를 조심하시오', abbey:'종이 울리면 문을 닫아라',
+  fishmarket:'오늘의 생선: 정체불명', lighthouse:'살려 주세요 (진짜일 수도 있음)', shipyard:'하나, 둘, 셋, 쉬고',
+  pier:'배는 몇 척뿐이다', radiotower:'이 방송은 미끼가 아닙니다', bridge:'마지막 지휘', standoff:'다리를 건너지 마시오',
+};
+const INTRO_CAP = {
+  man:'7번 버스 22년 무사고. 오늘 깨질 예정.', yuri:'3교대 퇴근길. 좀비보다 수간호사가 더 무섭다.', arin:'양궁부 에이스. 과녁 밖에선 벌레도 못 잡는다.',
+  kwan:'태권도 7단. 밀린 회비 받으러 나왔다.', baek:'6살 진돗개. 이 버스 유일한 무임승차 허용.', choi:'오늘 비번. 초과근무 수당은 없다.',
+  cheol:'배달 9년. 면이 불기 전엔 안 죽는다.', geum:'트로트 지망생. 관객이 좀비라도 마이크는 안 놓는다.', kal:'전직 조직원. 착하게 살기로 한 첫날 세상이 망했다.',
+  leo:'구독자 312명. 그중 300명은 친척.', old:'78세 특전사. 적보다 허리 디스크가 빠르다.', gray:'물렸는데 멀쩡함. 본인도 이유를 모른다.',
+  ha:'직업군인. 오늘 처음으로 명령을 어겼다.', bora:'양궁부 부장. 전국체전 취소가 좀비보다 화난다.', priest:'종 치는 남자. 신도는 도망가고 종만 남았다.',
+};
+function queueCine(){
+  S.cineQ = [];
+  if (!C || S.def.prologue) return;
+  S.cineQ.push({ kind:'title', text: C.siegeNow ? '번외 「너무 오래 머물렀다」' : '제' + (C.stats.battles + 1) + '장 「' + (CHAPTER[S.mapId] || S.def.name) + '」', ms:1300 });
+  C.introduced = C.introduced || [];
+  for (const h of S.humans){ if (S.cineQ.length >= 3) break; if (!INTRO_CAP[h.id] || C.introduced.includes(h.id)) continue;
+    C.introduced.push(h.id); S.cineQ.push({ kind:'intro', h, text:INTRO_CAP[h.id], ms:1800 }); }
+}
+function cineStep(now){
+  if (FAST || !S.cineQ) return false;
+  if (S.cine){ if (now < S.cine.end) return true; S.cine = null; const el = document.getElementById('frz'); el.className = ''; document.getElementById('stage').classList.remove('frz'); }
+  if (S.cineQ.length && modalHidden()){ const c = S.cine = S.cineQ.shift(); c.end = now + c.ms; if (c.kind === 'stop') return true;
+    const el = document.getElementById('frz');
+    el.innerHTML = c.kind === 'title' ? '<div class="ct">' + c.text + '</div>'
+      : '<div class="ci">' + face(c.h.id) + '<div><b style="color:' + c.h.color + '">' + c.h.name + '.</b> ' + c.text + '</div></div>';
+    el.className = 'show ' + c.kind; document.getElementById('stage').classList.add('frz'); sfx(c.kind === 'title' ? 'stamp' : 'pick'); return true; }
+  return false;
+}
+// 기념사진: 이긴 판마다 가장 잘한 사람 한 장
+function mvpShot(){
+  let best = null, bs = -1;
+  for (const h of S.humans){ if (h.left || h.noFight) continue;
+    const sc = (h.kills || 0) + 4*(h.carries || 0) + (h.heals || 0)/3 + (h.sigs || 0)*.5;
+    if (sc > bs){ bs = sc; best = h; } }
+  if (!best || bs <= 0) return null;
+  const why = (best.carries || 0) >= 1 && 4*best.carries >= (best.kills || 0) ? '동료 ' + best.carries + '명을 업어 왔어요'
+    : (best.heals || 0) >= 9 && (best.heals/3) >= (best.kills || 0) ? '체력 ' + best.heals + '만큼 치료했어요'
+    : '감염자 ' + (best.kills || 0) + '마리를 쓰러뜨렸어요';
+  return { id:best.id, map:S.def.name, why, say:best.lastSaid || '' };
+}
+function shotHtml(p, small){
+  const ch = CHARS[p.id]; if (!ch) return '';
+  return '<div class="photo' + (small ? ' sm' : '') + '">' + face(p.id) + '<div><b style="color:' + ch.color + '">' + ch.name + '</b>' + (small ? '' : ' <span class="dim">· ' + p.map + '</span>') + '<br><span class="dim">' + (small ? p.map : p.why) + '</span></div></div>';
+}
+// ===== 2묶음: 한 방 정적 · 레오 생방송 · 기술 리액션 =====
+let hushUntil = 0;
+// 한 방 정적: 큰 한 방 뒤 0.4초 소리가 끊기고, 맥 빠진 한마디 (한 판에 두 번까지)
+const HUSH_SAY = { man:['…어, 미안.','관절은 소중한 건데.','22년 렌치 짬밥이다.'], kwan:['어이구, 너무 세게 찼나.','방금 소리 좀 징그러웠죠?','기본기가 중요하다.'], kal:['…아, 습관이.','이건 정당방위다.','형님들이 보면 울겠네.'] };
+function hushBeat(h){
+  if (!HUSH_SAY[h.id] || (S.hushN || 0) >= 2 || S.t < (S.hushCd || 0) || Math.random() > .6) return;
+  S.hushN = (S.hushN || 0) + 1; S.hushCd = S.t + 25;
+  if (!FAST){ hushUntil = performance.now() + 420; (S.cineQ = S.cineQ || []).unshift({ kind:'stop', ms:170 }); }
+  sayQ(h, pick(HUSH_SAY[h.id]), .45);
+}
+// 레오 생방송: 레오가 나가면 시청자 수와 댓글이 흘러가요
+const LIVE_SIG = { kwan:'관장님 미쳤다 ㄷㄷ', man:'기사님 렌치 무엇', arin:'헤드샷 ㄷㄷ', geum:'노래 좋다 ㅋㅋ 앵콜', choi:'경찰 아저씨 멋있다', old:'할아버지 실화냐', cheol:'배달 빠르다 ㅋㅋ',
+  baek:'멍멍이 일한다', kal:'조폭 아저씨 무섭다', bora:'양궁 국대 가자', yuri:'간호사님 천사', gray:'저 아저씨 왜 안 물림?', priest:'사이비 같은데…', ha:'군인 아저씨 짱', leo:'드론 뷰 미쳤다' };
+const LIVE_IDLE = ['ㅋㅋㅋ 이거 실화임?','강아지 이름 뭐예요?','이거 CG죠?','엄마: 레오야 밥은 먹었니','버스 번호 7번 맞죠?','구독 눌렀어요','화질 왜 이럼','아저씨 뒤에 뒤에!!','삼촌 화이팅','지금 어디예요?','이모: 위험한 거 하지 마','광고 언제 나옴?'];
+const LIVE_EV = { down:['ㅠㅠ 일어나요','안 돼!!!','업어요 업어!!'], horde:['헐 떼로 온다','도망가!!!','다들 기도합시다'], hit:['레오 맞았다 ㅋㅋㅋ','방송 사고?','ㅋㅋㅋ 시청자 +1'], boss:['와 잡았다!!!','클립 따 주세요','레전드 갱신'] };
+function liveOn(){ const l = S.humans.find(h => h.id === 'leo'); return l && !l.boarded && !l.left && !l.downed ? l : null; }
+function liveSay(text, plus){ if (!S.live || !liveOn()) return; S.live.list.push({ text, t:S.t }); if (S.live.list.length > 4) S.live.list.shift(); if (plus) S.live.n += plus; }
+function stepLive(){
+  const l = S.humans.find(h => h.id === 'leo'); if (!l) return;
+  if (!S.live) S.live = { n:4, list:[], next:2, hp:l.hp };
+  if (!liveOn()) return;
+  if (l.hp < S.live.hp){ liveSay(pick(LIVE_EV.hit), 1); } S.live.hp = l.hp;
+  if (S.t >= S.live.next){ S.live.next = S.t + 5 + Math.random()*4; liveSay(pick(LIVE_IDLE.filter(c => !c.includes('강아지') || S.humans.some(h => h.dog)))); if (Math.random() < .3) S.live.n += Math.random() < .7 ? 1 : -1; S.live.n = Math.max(2, S.live.n); }
+}
+function renderLive(){
+  const el = document.getElementById('live'); if (!el) return;
+  if (!S || !S.live || !liveOn() || S.over){ el.className = ''; return; }
+  el.className = 'show';
+  el.innerHTML = '<div class="lh"><b>● LIVE</b> 시청자 ' + S.live.n + '명</div>' + S.live.list.filter(c => S.t - c.t < 7).map(c => '<div class="lc">' + c.text + '</div>').join('');
+}
+// 기술 리액션 한마디
+const REACT = {
+  cheol:['문 앞에 두고 벨 눌렀습니다!','리뷰 이벤트로 생존 드립니다!','아, 단무지 깜빡했네.'],
+  gray:['(꾸벅) 네, 수고하십니다.','지나가는 사람입니다.','…방금 눈 마주친 것 같은데.'],
+  bora:['팔꿈치 내려갔다, 서아린.','좀비여도 자세는 기본이야.','호흡! 호흡 잊지 마.'],
+  arinBack:['선배! 지금 좀비인데요?!','…네, 선배.'],
+  priestMiss:['…녹이 슬었나. 다시!','믿음이 부족해서 그래, 믿음이!'],
+  oldBack:['어르신! 여기서 누우시면 안 돼요!','잠깐만, 쏘지 마. 파스 좀.'],
+};
+function stepReact(){
+  // 회색: 감염자 곁을 지나가며 목례
+  const g = S.humans.find(h => h.id === 'gray' && !h.downed && !h.boarded && !h.left);
+  if (g && S.t > (g.bowCd || 0) && S.zombies.some(z => !z.asleep && !ZT[z.type].human && dist(z,g) < 1.3)){ g.bowCd = S.t + 15; g.bowT = S.t + .6; bubble(g, pick(REACT.gray), '#d8dde2', 2); }
+}
+// ===== 3묶음: 돌아온 대원의 생전 버릇 · 변하기 전 마지막 말 =====
+const HABIT = {
+  man:['(렌치를 쥐고 버스 쪽을 본다)','…출발… 시간…'], yuri:['(구급 가방을 뒤적인다)','…다친 사람… 어디…'], arin:['(빈 활시위를 당긴다)','…과녁… 안 보여…'],
+  kwan:['(엉성한 준비 자세)','…차렷… 경례…'], choi:['(경례하려다 멈춘다)','…신분증… 보여 주세요…'], cheol:['(빈 상자를 꼭 쥐고 서 있다)','…배달… 왔습니다…'],
+  geum:['(마이크 잡는 시늉)','…한 곡… 더…'], kal:['(각목을 어깨에 걸친다)','…형님…'], leo:['(셀카봉을 든다)','…구독… 좋아요…'],
+  old:['(허리를 짚는다)','…허리야…'], ha:['(경례 자세로 굳는다)','…명령을… 기다립니다…'], bora:['(활을 당기는 시늉)','…아린아…'],
+  priest:['(종 흔드는 시늉)','…물러가라…'], gray:['(멍하니 서 있다)','…난… 아직…'],
+};
+function ghostHabit(z){
+  const id = z.named.ghost, hb = HABIT[id]; z.habitDone = true; if (!hb) return;
+  z.freezeT = 2.2; bubble(z, hb[0], z.named.color || '#ccc', 1.3); sayQ(z, hb[1], 1.3);
+  const nm = CHARS[id].name, w = S.humans.filter(h => !h.downed && !h.boarded && !h.left && !h.dog && !h.noFight);
+  if (w.length) sayQ(pick(w), pick([nm + '…?', '…저거, ' + nm + jo(nm, '이잖아', '잖아') + '.', '쏘지 마… 아니, 쏴야 해…', '…미안해요.']), 2.6);
+  liveSay('…저 사람 아까 그 사람 아님?', 0);
+}
+const LAST_SAY = {
+  man:'…다음 정류장에선, 누가 운전 좀 배워 둬.', yuri:'기사님… 다음 정류장에선 저 그냥 내려 주세요.', kwan:'아린아, 이제 앞에 서는 건 네 차례다.',
+  choi:'근무… 교대할 시간이네요.', cheol:'마지막 배달은… 다들 섬까지.', geum:'앵콜은… 섬에서 불러 줘.', kal:'아저씨, 아까 버스비… 주머니에 넣어 뒀어요.',
+  leo:'방송 끄지 마요. 끝까지 찍어 줘요.', old:'이번 작전은… 자네들이 마무리하게.', ha:'마지막 명령입니다. 살아남으십시오.', bora:'아린아, 팔꿈치… 내리지 마.',
+  priest:'종은… 이제 당신들이 치시오.', gray:'…조금만 더 같이 가고 싶었는데.',
+};
+function lastWords(){
+  if (!C || S.lastWordsDone || S.t < 12) return; S.lastWordsDone = true;
+  const h = S.humans.find(h => !h.boarded && !h.left && !h.dog && C.people[h.id] && C.people[h.id].bitten && C.people[h.id].bitLeft === 1); if (!h) return;
+  const text = h.id === 'arin' ? (S.humans.some(o => o.id === 'bora') ? '선배, 나 마지막 화살은 자세 괜찮았지?' : '관장님… 저 오늘은 안 무서웠어요.') : (LAST_SAY[h.id] || '…조금만 더 같이 가고 싶었는데.');
+  bubble(h, text, '#d9b8ff', 4.2, true); addLog('<b style="color:#d9b8ff">' + h.name + ': "' + text + '"</b>');
+  (C.quotes = C.quotes || []).push({ id:h.id, text, map:S.def.name + ' (마지막 말)' });
+  const w = S.humans.filter(o => o !== h && !o.downed && !o.boarded && !o.left && !o.dog && !o.noFight); if (w.length) sayQ(pick(w), pick(['…그런 말 하지 마.','…알았어.','다음 정류장까진 같이 가.']), 2.8);
+}
 function quirkSay(h,text,why){
   bubble(h, '💢 '+text, '#ffb36b', 2.4); S.stats.quirk++;
   addLog(`<span style="color:#ffb36b">[버릇]</span> ${h.name}: "${text}" — ${why}`);
@@ -2223,16 +2521,16 @@ function quirk(h,dt){
     const d = S.humans.find(o => o.downed && !o.carriedBy && !o.boarded && !o.left && !o.dog && dist(o,h) < 14 && !(S.ctrl && S.ctrl.carryIntent === o));
     if (d){
       if (dist(d,h) <= 1.3){ h.path = []; h.carryT = (h.carryT || 0) + dt;
-        if (h.carryT >= T.carrySec){ h.carryT = 0; h.carrying = d; d.carriedBy = h; S.stats.carries++; quirkSay(h,'내가 업지. 저것들은 날 안 건드려.','무시당함: 쓰러진 동료를 알아서 업어 버스로 데려가요'); }
+        if (h.carryT >= T.carrySec){ h.carryT = 0; h.carrying = d; d.carriedBy = h; S.stats.carries++; h.carries = (h.carries||0) + 1; sig(h); quirkSay(h,'내가 업지. 저것들은 날 안 건드려.','무시당함: 쓰러진 동료를 알아서 업어 버스로 데려가요'); }
         return true; }
       h.carryT = 0; h.pathT -= dt; if (h.pathT <= 0 || !h.path.length){ h.pathT = .5; h.path = pathTo(h, Math.floor(d.x), Math.floor(d.y)); } followPath(h, speedOf(h), dt); return true;
     }
   }
   if (h.id === 'old'){ h.tireT = (h.tireT || 0) + dt; if (h.tired > 0) h.tired -= dt;
-    if (h.tireT >= 30){ h.tireT = 0; h.tired = 6; quirkSay(h,'허리야… 잠깐만 쉬자.','노익장: 30초마다 6초씩 지쳐서 느려져요'); } }
+    if (h.tireT >= 30){ h.tireT = 0; h.tired = 6; quirkSay(h,'허리야… 잠깐만 쉬자.','노익장: 30초마다 6초씩 지쳐서 느려져요'); if (Math.random() < .5){ const yy = S.humans.find(o => o.id === 'yuri' && !o.downed && !o.boarded && !o.left); sayQ(yy || h, yy ? REACT.oldBack[0] : REACT.oldBack[1], 1.6); } } }
   if (h.id === 'leo'){
     h.droneCd = (h.droneCd === undefined ? 5 : h.droneCd) - dt;
-    if (h.droneCd <= 0){ h.droneCd = 30; let n = 0; for (const z of S.zombies) if (z.asleep && !z.marked){ z.marked = true; n++; } bubble(h,'드론 띄웁니다! 🚁','#b2ebf2',1.8); addLog('레오의 드론: 시체인 척하는 것 ' + n + '마리를 찾았어요.'); }
+    if (h.droneCd <= 0){ h.droneCd = 30; sig(h); let n = 0; for (const z of S.zombies) if (z.asleep && !z.marked){ z.marked = true; n++; } bubble(h,'드론 띄웁니다! 🚁','#b2ebf2',1.8); addLog('레오의 드론: 시체인 척하는 것 ' + n + '마리를 찾았어요.'); }
     if (h.filmT > 0){ h.filmT -= dt; const t = h.filmTarget;
       if (t && S.zombies.includes(t) && dist(t,h) > 4.2){ h.pathT -= dt; if (h.pathT <= 0 || !h.path.length){ h.pathT = .5; h.path = pathTo(h, Math.floor(t.x), Math.floor(t.y)); } followPath(h, speedOf(h), dt); return true; } }
     else if (h.order !== 'hold' && h.order !== 'bus' && h.qCd <= 0){
@@ -2297,7 +2595,7 @@ function carryStep(h,dt){
   const d = h.carryIntent;
   if (!d.downed || d.carriedBy || d.boarded){ h.carryIntent = null; h.carryT = 0; return false; }
   if (dist(h,d) <= 1.3){ h.path = []; h.carryT += dt;
-    if (h.carryT >= T.carrySec){ h.carrying = d; d.carriedBy = h; h.carryIntent = null; h.carryT = 0; S.stats.carries++; sayK(h,'carry'); addLog(`${h.name}${jo(h.name,'이','가')} ${d.name}${jo(d.name,'을','를')} 업었어요! 버스로!`); }
+    if (h.carryT >= T.carrySec){ h.carries = (h.carries||0) + 1; pairTalk(h,d,'carry'); h.carrying = d; d.carriedBy = h; h.carryIntent = null; h.carryT = 0; S.stats.carries++; sayK(h,'carry'); addLog(`${h.name}${jo(h.name,'이','가')} ${d.name}${jo(d.name,'을','를')} 업었어요! 버스로!`); }
     return true; }
   h.carryT = 0; h.pathT = (h.pathT || 0) - dt; if (!h.path.length || h.pathT <= 0){ h.pathT = .5; h.path = pathTo(h, Math.floor(d.x), Math.floor(d.y)); } followPath(h, speedOf(h), dt); return true;
 }
@@ -2435,7 +2733,7 @@ function step(dt){
     const st = stage(); S.spawnT += dt;
     if (S.spawnT >= st.every * actMul()){ S.spawnT = 0; for (let i=0;i<st.n;i++) spawnOne(Math.floor(rng()*3), S.t > T.runnerAfter && rng() < .25 ? 'runner' : 'walker'); }
   }
-  stepHazards(dt);
+  stepHazards(dt); stepTalk();
   for (const h of S.humans) stepHuman(h,dt);
   for (const z of [...S.zombies]) if (S.zombies.includes(z)) stepZombie(z,dt);
   if (S.def.prologue) return;
@@ -2622,9 +2920,10 @@ function drawZSpr(z, t, im){
   if (z.type === 'bloater'){ ctx.fillStyle = 'rgba(160,190,80,.28)'; circ(x,y-6,15); ctx.fill(); }
   if (z.type === 'bride' && z.singing){ ctx.fillStyle=`rgba(255,200,240,${.25+.15*Math.sin(t/150)})`; circ(x,y-10,24); ctx.fill(); }
   if (z.type === 'cult' && z.ringT > 0){ ctx.strokeStyle = `rgba(255,220,120,${z.ringT/1.6})`; ctx.lineWidth = 2; for (let r = 1; r <= 3; r++){ circ(x, y-10, r*10 + (1.6-z.ringT)*12); ctx.stroke(); } }
+  if (z.danceT > S.t){ ctx.fillStyle = '#ffd6f0'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('♪', x + 8*Math.sin(t/150), y - 34); }
   if (z.aimB) drawLane(z, z.aimB.dx, z.aimB.dy, 12, t, 1.6);
   if (z.stunT > 0){ ctx.fillStyle = '#ffd36b'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('💫', x + 8*Math.sin(t/120), y - 38); }
-  const h = drawSpr(im, x, y, z, t, tg ? (tg.x < z.x ? -1 : 1) : (z.dashB ? (z.dashB.dx < 0 ? -1 : 1) : 0));
+  const h = drawSpr(im, x + (z.danceT > S.t ? Math.round(Math.sin(t/80)*2.5) : 0), y - (z.danceT > S.t ? Math.round(Math.abs(Math.sin(t/160))*2) : 0), z, t, tg ? (tg.x < z.x ? -1 : 1) : (z.dashB ? (z.dashB.dx < 0 ? -1 : 1) : 0));
   const boss = Z_BOSS[z.type], bw = boss ? 36 : 16, by = y + 9 - h - 6;
   if (boss || z.hp < z.maxhp){ const f = Math.max(0, z.hp)/z.maxhp; ctx.fillStyle='#000a'; ctx.fillRect(x-bw/2,by,bw,boss?4:2.5); ctx.fillStyle = boss ? '#ff7ab0' : '#e05050'; ctx.fillRect(x-bw/2,by,bw*f,boss?4:2.5); }
   let lbl = z.named ? zName(z) : Z_LABEL[z.type];
@@ -2678,7 +2977,10 @@ function drawHuman(h,t){
   if (S.ctrl === h){ ctx.strokeStyle = `rgba(255,255,255,${.55+.4*Math.sin(t/180)})`; ctx.lineWidth = 2; circ(x,y,13); ctx.stroke(); }
   ctx.fillStyle='rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(x,y+8,9,4,0,0,Math.PI*2); ctx.fill();
   const sim = sprImg(h.id);
-  if (sim) drawSpr(sim, x, y, h, t);
+  const wig = h.digT > S.t ? Math.round(Math.sin(t/40)*2) : 0, bow = h.bowT > S.t ? 2 : 0;
+  if (sim) drawSpr(sim, x + wig, y + bow, h, t);
+  if (h.digT > S.t){ ctx.fillStyle = '#fff3c4'; ctx.font = 'bold 10px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.fillText('냄새!', x, y - 30); }
+  if (h.tired > 0 && !h.downed){ ctx.fillStyle = Math.floor(t/150) % 2 ? '#ff6b6b' : '#ffd166'; ctx.font = 'bold 11px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.fillText('⚡허리', x, y - 30); }
   else if (h.dog){
     ctx.fillStyle = h.color; ctx.beginPath(); ctx.ellipse(x,y+1,9,6,0,0,Math.PI*2); ctx.fill(); circ(x+7,y-3,4.5); ctx.fill();
     ctx.fillStyle='#d9cdb5'; ctx.beginPath(); ctx.moveTo(x+5,y-7); ctx.lineTo(x+7,y-11); ctx.lineTo(x+9,y-7); ctx.fill(); ctx.fillStyle='#222'; circ(x+9,y-3,1.2); ctx.fill();
@@ -2758,7 +3060,8 @@ function drawBubbles(){
     const x = P(e.x), y = P(e.y)-20;
     ctx.font = '12px "Malgun Gothic",sans-serif'; const w = Math.min(230, ctx.measureText(e.bubble.text).width+12);
     const bx = Math.max(2, Math.min(W*TS-w-2, x-w/2));
-    ctx.fillStyle = e.say ? 'rgba(16,18,24,.9)' : 'rgba(18,28,16,.9)'; rr(bx,y-13,w,19,6); ctx.fill(); ctx.strokeStyle = e.bubble.color; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle = e.say ? 'rgba(16,18,24,.9)' : 'rgba(18,28,16,.9)'; rr(bx,y-13,w,19,6); ctx.fill(); ctx.strokeStyle = e.bubble.color; ctx.lineWidth = e.bubble.gold ? 2 : 1; ctx.stroke();
+    if (e.bubble.gold){ ctx.strokeStyle = 'rgba(255,209,102,' + (.35 + .3*Math.sin(S.t*6)) + ')'; ctx.lineWidth = 3; rr(bx-2,y-15,w+4,23,7); ctx.stroke(); }
     ctx.fillStyle = e.bubble.color; ctx.textAlign='left'; ctx.fillText(e.bubble.text, bx+6, y+1);
   }
 }
@@ -2830,6 +3133,7 @@ let hintUntil = 0;
 function hint(html, ms=3500){ $('#hint').innerHTML = html; hintUntil = performance.now()+ms; }
 let layoutH = 0;
 function renderUI(full){
+  renderLive();
   if (S && C && S.mapId === 'garage' && !S.over && !S.paused && C.stats.battles === 0){
     S._tut = S._tut || 0;
     if (S._tut === 0 && S.t > .5){ S._tut = 1; hint('<b style="color:#ffe08a">땅을 누르면</b> 박만석이 가고, 다들 <b>따라와요</b>. 감염자를 누르면 때려요.', 9000); }
@@ -2866,7 +3170,7 @@ function renderUI(full){
 
 
     return `<div style="--cc:${h.color}" class="card ${S.ctrl===h?'ctrl':''} ${(h.boarded||h.left||h.downed)?'gone':''}" data-i="${i}">${face(h.id)}
-      <div class="nm">${FACE[h.id] ? "" : `<span style="color:${h.color}">●</span> `}${h.name}${'★'.repeat(h.star || 0) ? ' <span style="color:#f5c542">' + '★'.repeat(h.star) + '</span>' : ''}</div><div class="jb">${(ROLE_INFO[h.role]||{}).icon||""} ${h.role||""} · <span style="color:#ffb36b">${h.trait}</span></div>
+      <div class="nm">${FACE[h.id] ? "" : `<span style="color:${h.color}">●</span> `}${h.name}${'★'.repeat(h.star || 0) ? ' <span style="color:#f5c542">' + '★'.repeat(h.star) + '</span>' : ''}</div><div class="jb">${(ROLE_INFO[h.role]||{}).icon||""} ${h.role||""} · <span style="color:#ffd166" title="${SIG[h.id] ? SIG[h.id].desc : ''}">${SIG[h.id] ? '✦ ' + SIG[h.id].name : h.trait}</span></div>
       <div class="bar"><b style="width:${f*100}%;background:${col}"></b></div><div class="st">${tags.join('')}</div></div>`; }).join('');
   $('#orders').innerHTML = ORDERS.filter(o => !o.hidden).map(o => `<button data-o="${o.id}" class="big" title="${o.desc}">${o.id === 'follow' ? '🚶' : '🚌'} ${o.name}<kbd>${o.key}</kbd></button>`).join('');
   const nb = nearBusCtrl(), inz = S.ctrl && inZone(S.ctrl);
@@ -3177,7 +3481,7 @@ function deployScreen(mapId, head){
         if (!['ok','hurt'].includes(r.status)) return '';
         const can = pool.includes(id), on = sel.includes(id);
         const why = ch.noFight ? '싸우지 못해요' : r.status === 'hurt' ? '중상 — 이번엔 쉬어요' : '';
-        return `<div class="person ${on?'sel':''} ${can?'':'no'}" data-id="${id}">${face(id)}<b style="color:${ch.color}">${ch.name}</b>${star(id)} <span class="dim">${(ROLE_INFO[ch.role]||{}).icon||""} ${ch.role||""} · ${ch.job} · ${ch.trait}</span><br>체력 ${r.hp}/${ch.hp}${r.bitten?' · <span style="color:#d9b8ff">🦠 물림 (' + r.bitLeft + '곳 남음)</span>':''}${why?` · <span class="dim">${why}</span>`:''}</div>`; }).join('')}</div>
+        return `<div class="person ${on?'sel':''} ${can?'':'no'}" data-id="${id}">${face(id)}<b style="color:${ch.color}">${ch.name}</b>${star(id)} <span class="dim">${(ROLE_INFO[ch.role]||{}).icon||""} ${ch.role||""} · ${ch.job}</span><br>${SIG[id] ? `<span style="color:#ffd166">✦ ${SIG[id].name}</span> <span class="dim">${SIG[id].desc}</span><br>` : ''}체력 ${r.hp}/${ch.hp}${r.bitten?' · <span style="color:#d9b8ff">🦠 물림 (' + r.bitLeft + '곳 남음)</span>':''}${why?` · <span class="dim">${why}</span>`:''}</div>`; }).join('')}</div>
       ${teamHtml(sel)}`
       : `<div>${sel.map(id => { const ch = CHARS[id], r = C.people[id]; return `<span class="chip" style="border-color:${ch.color}">${face(id)}<b style="color:${ch.color}">${ch.name}</b>${star(id)} <span class="dim">${r.hp}/${ch.hp}</span>${r.bitten ? ' 🦠' : ''}</span>`; }).join('')}</div>
       ${act.length ? `<div class="dim" style="margin-top:4px">🤝 ${act.map(c => c.name).join(' · ')}</div>` : ''}
@@ -3205,7 +3509,7 @@ function siegeIntro(){
     newBattle(mapId, party, { siege:true }); battleIntro(); });
 }
 function battleIntro(){
-  hideModal(); S.paused = false;
+  hideModal(); S.paused = false; queueCine();
   if (!C){ showModal(`<h2>연습: 휴게소</h2><div class="story">${S.def.intro}</div><h3>목표: ${S.def.needText}</h3><div class="dim">💡 ${S.def.tip}</div>${controlsHtml()}<button class="go" id="b-go">시작</button>`); S.paused = true; on('#b-go', () => { hideModal(); S.paused = false; }); return; }
   if (!C.siegeNow && !C.seenControls){ C.seenControls = true; S.paused = true;
     showModal(`<h2>조작</h2>${controlsHtml()}<button class="go" id="b-go">시작</button>`); on('#b-go', () => { hideModal(); S.paused = false; }); }
@@ -3229,11 +3533,13 @@ function battleResult(){
   const items = S.delivered.map(b => b.name).join(', ') || '없음';
   const fatal = S.why === 'bus' || S.why === 'wiped';
   const canRetry = C && !ok && C.retries > 0;
+  S.mvp = ok && C ? mvpShot() : null;
   showModal(`
     <h2>${ok ? '작전 성공' : '작전 실패'}${why}</h2>
     <div class="dim">${S.def.name} · ${fmtTime(S.t)}</div>
     <h3>실은 것</h3><div>${items}${S.stolen ? ` <span style="color:#ffb38a">· 약탈단이 식량을 ${S.stolen}번 훔쳐 갔어요</span>` : ''}</div>
     <h3>대원</h3><table class="res">${S.humans.map(h => `<tr><td><b style="color:${h.color}">${h.name}</b></td><td>${st(h)}</td></tr>`).join('')}</table>
+    ${S.mvp ? '<h3>📸 오늘의 한 장</h3>' + shotHtml(S.mvp) : ''}
 
     ${C ? (canRetry ? `<button class="alt" id="r-retry">다시 하기 (${C.retries}번 남음)</button>` : '') + (fatal && !canRetry ? '' : `<button class="go" id="r-next">${ok ? '버스로' : '그대로 버스로'}</button>`) + (fatal && !canRetry ? `<button class="go" id="r-over">여정 끝</button>` : '')
         : `<button class="go" id="r-again">다시 하기</button><button class="alt" id="r-title">처음 화면</button>`}`);
@@ -3245,7 +3551,8 @@ function battleResult(){
 }
 function applyBattle(){
   const lines = [];
-  C.stats.battles++; C.stats.carries += S.stats.carries; C.stats.quirks += S.stats.quirk; C.stats.hordes += S.stats.hordes;
+  C.stats.battles++;
+  if (S.mvp){ C.album = C.album || []; C.album.push(S.mvp); } C.stats.carries += S.stats.carries; C.stats.quirks += S.stats.quirk; C.stats.hordes += S.stats.hordes;
   for (const h of S.humans){
     const r = C.people[h.id];
     r.lastSaid = h.lastSaid || r.lastSaid;
@@ -3547,6 +3854,8 @@ function endingScreen(lines=[]){
     ${lines.length ? `<div class="story">${lines.join('<br>')}</div>` : ''}
     <div class="story">${story}</div>
     <h3>버스 좌석</h3><div class="people">${C.roster.map(seat).join('')}</div>
+    ${(C.album || []).length ? '<h3>📸 막차 앨범</h3><div class="album">' + C.album.map(p => shotHtml(p, true)).join('') + '</div>' : ''}
+    ${(C.quotes || []).length ? '<h3>📜 잊지 못할 한마디</h3>' + C.quotes.map(q => '<div class="quote"><b style="color:' + CHARS[q.id].color + '">' + CHARS[q.id].name + '</b> "' + q.text + '" <span class="dim">— ' + q.map + '</span></div>').join('') : ''}
     <div class="dim">싸움 ${C.stats.battles} · 업기 ${C.stats.carries} · 잃은 사람 ${C.stats.lost} · 다른 계획엔 다른 끝이 있어요</div>
     <button class="go" id="a-title">처음 화면</button>`);
   on('#a-title', titleScreen);
@@ -3666,7 +3975,7 @@ function gameOver(reason){
 let last = performance.now(), acc = 0, uiT = 0;
 function frame(now){
   const realDt = Math.min(.25, (now-last)/1000); last = now;
-  if (S && !S.paused && !S.over){ acc += realDt*S.speed; while (acc >= T.tick){ step(T.tick); acc -= T.tick; } }
+  if (S && !S.paused && !S.over && !cineStep(now)){ acc += realDt*S.speed; while (acc >= T.tick){ step(T.tick); acc -= T.tick; } }
   uiT += realDt; if (uiT > .2){ uiT = 0; if (S) renderUI(); }
   draw(); requestAnimationFrame(frame);
 }
