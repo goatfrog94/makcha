@@ -362,7 +362,8 @@ Object.assign(ZT, {
   bloater: { name:'부푼이', hp:8, spd:.8, dmg:1, cd:1.5, color:'#8fa35a', lines:['꾸르륵…','배… 아파…'] },
   raider:  { name:'번개단', hp:8, spd:2.2, dmg:2, cd:1.5, color:'#d0703a', human:true, range:6, lines:['먹을 거 내놔!','버스 털어!'] },
   soldier: { name:'군 잔당', hp:10, spd:1.8, dmg:3, cd:1.6, color:'#5b6b3a', human:true, range:7, lines:['멈춰! 쏜다!','명령이다!'] },
-  apc:     { name:'장갑차', hp:40, spd:1.1, dmg:5, cd:1, color:'#4b5a3a', boss:true, lines:[] },
+  brute:   { name:'덩치', hp:18, spd:.9, dmg:4, cd:1.6, color:'#a0603a', lines:['샅바… 어디…','한 판… 더…','으랏차…'] },
+  apc:     { name:'장갑차', hp:36, spd:1.1, dmg:5, cd:1, color:'#4b5a3a', boss:true, lines:[] },
   mother:  { name:'어미', hp:32, spd:0, dmg:3, cd:1.8, color:'#7a5a6a', boss:true, lines:['아가… 아가야…','배고프지…','엄마… 여기 있어…'] },
 });
 ZT.bride.boss = true;
@@ -567,7 +568,7 @@ MAPS.wedding = {
 MAPS.jam = {
   name:'고속도로 정체', obj:'loot', need:3, goalKinds:['food','fuel'], needText:'버려진 차에서 상자 3개 (식량 2 + 기름 1)',
   intro:'꽉 막힌 고속도로. 화물차 지붕 위에서 누가 손을 흔들어요.',
-  tip:'「부푼이」는 쓰러질 때 독을 뿜어요. 멀리서 잡아요.',
+  tip:'「덩치」가 발을 구르면 빨간 띠로 돌진해요. 옆으로 비켜 차에 박게 해요!',
   build(B){ B.rect(0,0,W-1,1,','); B.rect(0,18,W-1,19,','); B.rect(0,2,W-1,17,'R'); B.rect(5,9,29,9,'#'); B.set(12,9,'R'); B.set(20,9,'R'); B.set(26,9,'R');
     for (const [x,y] of [[6,3],[9,5],[12,3],[15,5],[22,4],[25,3],[28,5],[7,11],[10,13],[13,11],[16,14],[19,11],[23,13],[27,11],[29,14],[8,15],[21,15]]) B.car(x,y);
     B.rect(17,4,18,7,'V'); B.car(24,6,'A');
@@ -577,7 +578,7 @@ MAPS.jam = {
   alarm:{ x:24.5, y:7 },
   boxes:[ { x:9.5, y:7.5, kind:'food' }, { x:14.5, y:13.5, kind:'food' }, { x:27.5, y:16.5, kind:'fuel' }, { x:6.5, y:16.5, kind:'bonus', name:'욕심 상자 (캠핑카)' }, { x:22.5, y:7.5, kind:'med' } ],
   walkers:[[8,7],[13,6],[20,6],[26,7],[11,12],[17,12],[22,11],[25,15],[28,10],[15,16],[19,3]], nWalkers:9, runners:[[24,10],[29,6]], nRunners:1, crier:null,
-  extra:[ { type:'bloater', at:[[16,8],[23,12],[10,10],[27,4]], n:2 } ],
+  extra:[ { type:'bloater', at:[[16,8],[23,12],[10,10],[27,4]], n:2 }, { type:'brute', at:[[20,7]], n:1 } ],
   corpses:[[11,7],[24,12],[15,15],[8,11]], nSleepers:2,
   named:{ base:'walker', name:'택시 기사', hp:10, x:20, y:13, lines:['어디로… 모실까요…','미터기… 돌아갑니다…'] },
   spawns:[ [[31,4],[31,5]], [[31,13],[31,14]], [[16,17],[17,17]] ],
@@ -668,8 +669,8 @@ MAPS.outlet = {
 };
 MAPS.base = {
   name:'군 기지', obj:'boss', need:0, needText:'장갑차를 멈추고 대장 제압하기',
-  intro:'산 아래 군 기지. 연병장에서 장갑차가 으르렁거려요.',
-  tip:'장갑차는 뒤가 약해요. 빨간 줄이 보이면 비켜요! 노병이 있으면 대장이 말을 들을지도.',
+  intro:'산 아래 군 기지. 미쳐 버린 대장이 장갑차를 몰며 "남쪽으로!"를 외쳐요.',
+  tip:'빨간 띠가 보이면 비켜요! 돌진 뒤엔 잠깐 멈춰요. 그때 때려요.',
   build(B){ B.rect(0,0,W-1,0,','); B.rect(0,19,W-1,19,',');
     B.rect(5,1,30,18,'#'); B.rect(6,2,29,17,'.'); B.rect(5,8,5,11,'.'); B.rect(30,9,30,10,'.');
     B.rect(9,3,12,5,'#'); B.rect(22,14,26,16,'#'); B.rect(18,3,20,4,'#'); B.rect(8,14,9,15,'#');
@@ -1443,16 +1444,58 @@ function stepRaider(z,dt){
     if (dd < 2.5) moveDirect(z, z.x + (z.x-tgt.x)/(dd||1), z.y + (z.y-tgt.y)/(dd||1), d.spd*.7, dt);
   } else moveField(z, tgt.say ? S.flowOurs : S.flowH, d.spd, dt);
 }
+// 돌진 길: 벽(막힌 칸)까지 또는 최대 길이까지
+function laneLen(z, dx, dy, max){ let l = 0; while (l < max){ const nx = z.x + dx*(l+.3), ny = z.y + dy*(l+.3); if (!S.passable(Math.floor(nx), Math.floor(ny))) break; l += .25; } return l; }
+function drawLane(z, dx, dy, max, t, wTiles){
+  const len = laneLen(z, dx, dy, max), a = Math.atan2(dy, dx), x = P(z.x), y = P(z.y), w = P(wTiles);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+  ctx.fillStyle = 'rgba(255,50,50,' + (.18 + .14*Math.sin(t/70)) + ')'; ctx.fillRect(0, -w/2, P(len), w);
+  ctx.strokeStyle = 'rgba(255,90,90,.85)'; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]); ctx.strokeRect(0, -w/2, P(len), w); ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(255,120,120,.9)'; const ex = P(len); ctx.beginPath(); ctx.moveTo(ex, 0); ctx.lineTo(ex-8, -6); ctx.lineTo(ex-8, 6); ctx.fill();
+  ctx.restore();
+}
+// 돌진 띠 안에 있으면 옆으로 피할 곳 (대원은 0.4초쯤 늦게 알아채요)
+function laneDodge(h){
+  for (const z of S.zombies){ const a = z.aim || z.aimB; if (!a || a.t > (z.aim ? 1.2 : 1.1)) continue;
+    const max = laneLen(z, a.dx, a.dy, z.aim ? 10 : 12), half = z.aim ? 1.5 : 1.1;
+    const rx = h.x - z.x, ry = h.y - z.y, along = rx*a.dx + ry*a.dy; if (along < 0 || along > max + .5) continue;
+    const side = rx*(-a.dy) + ry*a.dx; if (Math.abs(side) > half) continue;
+    const sg = side >= 0 ? 1 : -1; let tx = h.x - a.dy*sg*2.2, ty = h.y + a.dx*sg*2.2;
+    if (!S.passable(Math.floor(tx), Math.floor(ty))){ tx = h.x + a.dy*sg*2.2; ty = h.y - a.dx*sg*2.2; }
+    return { x:tx, y:ty }; }
+  return null;
+}
+// 덩치: 발을 구르며 노려본 뒤(빨간 띠) 곧게 돌진. 벽·차에 박히면 3초 기절, 그때 피해 두 배
+function stepBrute(z,dt){
+  if (z.stunT > 0){ z.stunT -= dt; return true; }
+  if (z.dashB){ const sp = 6.5*dt, nx = z.x + z.dashB.dx*sp, ny = z.y + z.dashB.dy*sp;
+    const wall = !S.passable(Math.floor(nx), Math.floor(ny));
+    if (wall || z.dashB.left <= 0){ z.dashB = null; z.chCd = 6;
+      if (wall){ z.stunT = 3; shake(5,250); sfx('hit'); fxText(z.x, z.y-.9, '쿵! 기절', '#ffd36b'); bubble(z, '으어어…', '#ffd36b', 2.5); }
+      return true; }
+    z.x = nx; z.y = ny; z.dashB.left -= sp;
+    for (const h of outside()) if (!h.downed && dist(h,z) < 1 && !z.dashB.hit.includes(h.id)){ z.dashB.hit.push(h.id); h.hp -= 4; fxText(h.x,h.y-.4,'-4','#ff6b6b'); sfx('hurt'); shake(4,200);
+      const kd = dist(h,z)||1, kx = h.x+(h.x-z.x)/kd*1.2, ky = h.y+(h.y-z.y)/kd*1.2; if (S.passable(Math.floor(kx),Math.floor(ky))){ h.x = kx; h.y = ky; } if (h.hp <= 0) downH(h); }
+    for (const o of [...S.zombies]) if (o !== z && !ZT[o.type].boss && !ZT[o.type].human && !ZT[o.type].structure && dist(o,z) < 1 && !z.dashB.hit.includes('z'+o.id)){ z.dashB.hit.push('z'+o.id); o.hp -= 5; fxText(o.x,o.y-.4,'-5','#ffd36b'); if (o.hp <= 0) killZ(o, null); }
+    return true; }
+  if (z.aimB){ z.aimB.t -= dt; if (z.aimB.t <= 0){ z.dashB = { dx:z.aimB.dx, dy:z.aimB.dy, left:12, hit:[] }; z.aimB = null; sfx('scream'); } return true; }
+  z.chCd = (z.chCd === undefined ? 3 : z.chCd) - dt;
+  if (z.chCd <= 0){ const h = outside().filter(h => !h.downed && dist(h,z) > 2 && dist(h,z) < 9 && los(z,h) && laneLen(z,(h.x-z.x)/dist(h,z),(h.y-z.y)/dist(h,z),9) >= dist(h,z) - .6).sort((a,b) => dist(a,z) - dist(b,z))[0];
+    if (h){ const d = dist(h,z)||1; z.aimB = { t:1.5, dx:(h.x-z.x)/d, dy:(h.y-z.y)/d }; z.face = [z.aimB.dx, z.aimB.dy]; z.aware = true; z.awareT = T.awareKeep; bubble(z, '(발을 쿵쿵 굴러요)', '#ffb38a', 1.5); return true; } }
+  return false;
+}
 function stepApc(z,dt){
   const ht = outside().filter(h => !h.downed).sort((a,b) => dist(a,z) - dist(b,z))[0];
-  if (z.dashCd === undefined) z.dashCd = 6;
+  if (z.dashCd === undefined){ z.dashCd = 6; z.talkT = 1; }
+  z.talkT -= dt; if (z.talkT <= 0){ z.talkT = 9; bubble(z, pick(['📢 민간인은 남쪽으로 이동하라!','📢 멈추지 마라! 명령이다!','📢 전원 남쪽 항구로!']), '#ffe08a', 2.6); }
+  if (z.stuckT > 0){ z.stuckT -= dt; return; }
   z.dashCd -= dt;
   if (z.dash){
     const s = 7*dt, nx = z.x + z.dash.dx*s, ny = z.y + z.dash.dy*s;
-    if (!S.passable(Math.floor(nx), Math.floor(ny)) || z.dash.left <= 0){ z.dash = null; z.dashCd = 8; shake(4,200); sfx('hit'); return; }
+    const wall = !S.passable(Math.floor(nx), Math.floor(ny)); if (wall || z.dash.left <= 0){ z.dash = null; z.dashCd = 8; shake(4,200); sfx('hit'); z.stuckT = wall ? 3.5 : 2.5; fxText(z.x, z.y-1.2, wall ? '쿵! 엔진이 멈췄어요' : '엔진 과열!', '#ffd36b'); return; }
     z.x = nx; z.y = ny; z.dash.left -= s;
     for (const h of outside()) if (!h.downed && dist(h,z) < 1.15 && !z.dash.hit.includes(h.id)){
-      z.dash.hit.push(h.id); h.hp -= 5; fxText(h.x,h.y-.4,'-5','#ff6b6b'); sfx('hurt'); shake(6,250);
+      z.dash.hit.push(h.id); h.hp -= 4; fxText(h.x,h.y-.4,'-4','#ff6b6b'); sfx('hurt'); shake(6,250);
       const kd = dist(h,z) || 1, kx = h.x + (h.x-z.x)/kd*1.3, ky = h.y + (h.y-z.y)/kd*1.3; if (S.passable(Math.floor(kx),Math.floor(ky))){ h.x = kx; h.y = ky; }
       if (h.hp <= 0) downH(h); }
     for (const o of [...S.zombies]) if (o !== z && !ZT[o.type].boss && !ZT[o.type].human && dist(o,z) < 1.15){ o.hp -= 6; if (o.hp <= 0) killZ(o, null); }
@@ -1465,9 +1508,9 @@ function stepApc(z,dt){
   const want = Math.atan2(ht.y-z.y, ht.x-z.x), f0 = z.face || [-1,0]; let cur = Math.atan2(f0[1], f0[0]);
   let diff = ((want - cur + Math.PI*3) % (Math.PI*2)) - Math.PI; const turn = 1.2*dt;
   cur += Math.max(-turn, Math.min(turn, diff)); z.face = [Math.cos(cur), Math.sin(cur)];
-  if (z.dashCd <= 0 && d < 12 && Math.abs(diff) < .5){ z.aim = { t:1.2, dx:z.face[0], dy:z.face[1] }; bubble(z, '(엔진이 으르렁거려요)', '#ffb38a', 1.2); return; }
+  if (z.dashCd <= 0 && d < 12 && Math.abs(diff) < .5){ z.aim = { t:1.6, dx:z.face[0], dy:z.face[1] }; bubble(z, '(엔진이 으르렁거려요)', '#ffb38a', 1.2); return; }
   if (d > 3) moveField(z, S.flowOurs, ZT.apc.spd, dt);
-  if (z.cd <= 0 && d < 6 && shotClear(z,ht) && Math.abs(diff) < .6){ z.cd = 1.4; ht.hp -= 1; fxTracer(z, ht, '#ffcf5a'); sfx('gun'); fxText(ht.x,ht.y-.4,'-1','#ff6b6b'); makeNoise(z.x,z.y,2,12,'gun'); if (ht.hp <= 0) downH(ht); }
+  if (z.cd <= 0 && d < 5 && shotClear(z,ht) && Math.abs(diff) < .6){ z.cd = 2.2; ht.hp -= 1; fxTracer(z, ht, '#ffcf5a'); sfx('gun'); fxText(ht.x,ht.y-.4,'-1','#ff6b6b'); makeNoise(z.x,z.y,1,8,'gun'); if (ht.hp <= 0) downH(ht); }
 }
 function stepMother(z,dt){
   if (!S.powerOff){
@@ -1773,7 +1816,7 @@ function drawSpecial(z,t){
   if (drawAct3Z(z,t,x,y) || drawAct4Z(z,t,x,y)) return true;
   if (z.type === 'apc'){
     const f = z.face || [-1,0], a = Math.atan2(f[1], f[0]);
-    if (z.aim){ ctx.strokeStyle = `rgba(255,60,60,${.5+.4*Math.sin(t/80)})`; ctx.lineWidth = P(1.6); ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+z.aim.dx*P(10), y+z.aim.dy*P(10)); ctx.stroke(); }
+    if (z.aim) drawLane(z, z.aim.dx, z.aim.dy, 10, t, 2.3);
     const ap = prop('apc');
     if (ap){ ctx.save(); ctx.translate(x,y); ctx.rotate(a); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-ap.width/2+3, -ap.height/2+4, ap.width, ap.height); ctx.drawImage(ap, -Math.round(ap.width/2), -Math.round(ap.height/2));
       ctx.fillStyle = `rgba(255,211,107,${.35+.35*Math.sin(t/200)})`; ctx.fillRect(-ap.width/2, -6, 5, 12); ctx.restore(); }
@@ -1784,7 +1827,7 @@ function drawSpecial(z,t){
     ctx.fillStyle = '#ffd36b'; ctx.fillRect(-20,-6,4,12);      // 뒤쪽 해치
     ctx.restore(); }
     const fr = z.hp/z.maxhp; ctx.fillStyle='#000a'; ctx.fillRect(x-22,y-26,44,4); ctx.fillStyle='#ffcf5a'; ctx.fillRect(x-22,y-26,44*fr,4);
-    ctx.fillStyle='#ffe08a'; ctx.font='bold 10px "Malgun Gothic",sans-serif'; ctx.textAlign='center'; ctx.fillText('장갑차 (노란 해치가 약점)', x, y+28);
+    ctx.fillStyle='#ffe08a'; ctx.font='bold 10px "Malgun Gothic",sans-serif'; ctx.textAlign='center'; ctx.fillText(z.stuckT > 0 ? '장갑차 (멈췄어요! 지금!)' : '장갑차 (노란 해치가 약점)', x, y+28);
     return true;
   }
   if (z.type === 'mother'){
@@ -1893,6 +1936,7 @@ function stepZombie(z,dt){
   if (z.type === 'cult'){ stepCult(z,dt); return; }
   if (z.type === 'conductor'){ stepConductor(z,dt); return; }
   if (z.type === 'mimic'){ stepMimic(z,dt); return; }
+  if (z.type === 'brute' && stepBrute(z,dt)) return;
   if (z.type === 'drill' && S.beatPause && !(S.beatBroken > 0)) return;
   if (z.pushT > 0){ z.pushT -= dt; const pd = dist(z,z.pushFrom) || 1; moveDirect(z, z.x + (z.x-z.pushFrom.x)/pd, z.y + (z.y-z.pushFrom.y)/pd, zSpd(z)*1.2, dt); return; }
   let seen = null, sd = 99, sc = 99;
@@ -2014,7 +2058,9 @@ function doAttack(h,z,w){
   else { if (w.kind === 'gun') S.stats.shots++; sfx(w.kind === 'gun' ? 'gun' : 'bow'); fxTracer(h, z, w.kind === 'gun' ? '#ffe28a' : '#cfe8ff'); makeNoise(h.x,h.y,w.noise, w.kind==='gun'?12:2, w.kind==='gun'?'gun':'bow'); }
   if (z.type === 'bride' && !z.singing){ fxText(z.x,z.y-.4,'베일이 막았어요','#ccc'); return; }
   if (z.type === 'shield' && z.face){ const d = dist(h,z) || 1, dot = ((h.x-z.x)*z.face[0] + (h.y-z.y)*z.face[1]) / d; if (dot > .4){ dmg = Math.max(0, Math.round(dmg*.2)); fxText(z.x,z.y-.8,'방패!','#bcd'); } }
-  if (z.type === 'apc'){ const d = dist(h,z) || 1, f = z.face || [-1,0], dot = ((h.x-z.x)*f[0] + (h.y-z.y)*f[1]) / d; if (dot > -.2){ fxText(z.x,z.y-.8,'장갑에 튕겨요','#ccc'); return; } fxText(z.x,z.y-1,'뒤쪽 해치!','#ffd36b'); dmg += 2; }
+  if (z.type === 'brute' && z.stunT > 0){ dmg *= 2; fxText(z.x,z.y-1,'기절! ×2','#ffd36b'); }
+  if (z.type === 'apc' && z.stuckT > 0){ fxText(z.x,z.y-1,'멈춘 틈!','#ffd36b'); dmg += 1; }
+  else if (z.type === 'apc'){ const d = dist(h,z) || 1, f = z.face || [-1,0], dot = ((h.x-z.x)*f[0] + (h.y-z.y)*f[1]) / d; if (dot > -.2){ fxText(z.x,z.y-.8,'장갑에 튕겨요','#ccc'); return; } fxText(z.x,z.y-1,'뒤쪽 해치!','#ffd36b'); dmg += 2; }
   if (z.type === 'mother') dmg = S.powerOff ? Math.round(dmg*1.5) : Math.max(1, Math.round(dmg*.3));
   if (rng()*100 < hitP){
     z.hp -= dmg; fxText(z.x,z.y-.4,'-'+dmg,'#ffd36b');
@@ -2100,7 +2146,9 @@ function stepHuman(h,dt){
   const ox = h.x, oy = h.y;
   if (h.pending && S.t >= h.pending.at){ setOrder(h, h.pending.o); bubble(h,'…알았어요.','#ccc'); }
   skills(h,dt);
-  if (S.ctrl === h) ctrlStep(h,dt); else aiStep(h,dt);
+  const dodge = S.ctrl !== h && !h.carrying && laneDodge(h);
+  if (dodge){ h.path = []; moveDirect(h, dodge.x, dodge.y, speedOf(h), dt); }
+  else if (S.ctrl === h) ctrlStep(h,dt); else aiStep(h,dt);
   h.stillT = Math.hypot(h.x-ox, h.y-oy) > .001 ? 0 : h.stillT + dt;
   if (!h.stillT) h._guardSaid = false;
   // 조종 중인 사람이 이미 상자를 들고 다른 상자 위를 지나가면, 가까운 빈손 대원이 대신 들어요
@@ -2561,8 +2609,10 @@ function drawGround(){
 const SPR = {}, SPR_LIST = new Set(('man yuri arin kwan baek choi jiho cheol geum kal old leo yoon gray ha bora priest '
   + 'walker walker2 walker3 runner sleeper crier bride shield bloater raider soldier rider crawler scare diver drill conductor mimic').split(' '));
 // 감염자 종류 → 그림 이름 (비틀이는 세 가지 얼굴 중 하나, 교주는 대원 그림과 같아요)
-const zSprKey = z => z.type === 'walker' ? ['walker','walker2','walker3'][(z.id||0) % 3] : z.type === 'cult' ? 'priest' : z.type;
-const Z_LABEL = { crier:'울보', cult:'종지기 교주' };
+const zSprKey = z => z.type === 'brute' ? 'walker3' : z.type === 'walker' ? ['walker','walker2','walker3'][(z.id||0) % 3] : z.type === 'cult' ? 'priest' : z.type;
+const Z_LABEL = { crier:'울보', cult:'종지기 교주', brute:'덩치' };
+const BIG = {};
+function bigImg(im, key, sc){ const k = key + sc; if (BIG[k]) return BIG[k]; const c = document.createElement('canvas'); c.width = Math.round(im.width*sc); c.height = Math.round(im.height*sc); const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(im, 0, 0, c.width, c.height); return (BIG[k] = c); }
 const Z_BOSS = { bride:1, cult:1, conductor:1 };
 function drawZSpr(z, t, im){
   const x = P(z.x), y = P(z.y);
@@ -2572,11 +2622,14 @@ function drawZSpr(z, t, im){
   if (z.type === 'bloater'){ ctx.fillStyle = 'rgba(160,190,80,.28)'; circ(x,y-6,15); ctx.fill(); }
   if (z.type === 'bride' && z.singing){ ctx.fillStyle=`rgba(255,200,240,${.25+.15*Math.sin(t/150)})`; circ(x,y-10,24); ctx.fill(); }
   if (z.type === 'cult' && z.ringT > 0){ ctx.strokeStyle = `rgba(255,220,120,${z.ringT/1.6})`; ctx.lineWidth = 2; for (let r = 1; r <= 3; r++){ circ(x, y-10, r*10 + (1.6-z.ringT)*12); ctx.stroke(); } }
-  const h = drawSpr(im, x, y, z, t, tg ? (tg.x < z.x ? -1 : 1) : 0);
+  if (z.aimB) drawLane(z, z.aimB.dx, z.aimB.dy, 12, t, 1.6);
+  if (z.stunT > 0){ ctx.fillStyle = '#ffd36b'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('💫', x + 8*Math.sin(t/120), y - 38); }
+  const h = drawSpr(im, x, y, z, t, tg ? (tg.x < z.x ? -1 : 1) : (z.dashB ? (z.dashB.dx < 0 ? -1 : 1) : 0));
   const boss = Z_BOSS[z.type], bw = boss ? 36 : 16, by = y + 9 - h - 6;
   if (boss || z.hp < z.maxhp){ const f = Math.max(0, z.hp)/z.maxhp; ctx.fillStyle='#000a'; ctx.fillRect(x-bw/2,by,bw,boss?4:2.5); ctx.fillStyle = boss ? '#ff7ab0' : '#e05050'; ctx.fillRect(x-bw/2,by,bw*f,boss?4:2.5); }
   let lbl = z.named ? zName(z) : Z_LABEL[z.type];
   if (z.type === 'bride') lbl = z.singing ? '♪ 지금!' : '베일';
+  if (z.type === 'brute') lbl = z.stunT > 0 ? '덩치 (기절! 지금!)' : z.aimB ? '덩치 (돌진!)' : '덩치';
   if (z.type === 'conductor') lbl = S.beatBroken > 0 ? '지휘자 (무방비!)' : '지휘자 (박자 속에선 단단해요)';
   if (lbl){ ctx.fillStyle = z.named ? (z.named.color || '#ffe08a') : boss ? '#ffd6f0' : '#ffb3ff'; ctx.font='bold 9px "Galmuri11","Malgun Gothic",sans-serif'; ctx.textAlign='center'; ctx.fillText(lbl, x, y+20); }
   if (z.thief && !z.stole){ ctx.font='10px sans-serif'; ctx.fillText('🛢', x+11, by); }
@@ -2647,7 +2700,9 @@ function drawZombie(z,t){
   if (S.dark && !z.asleep && !zSeen(z)){ noteRipple(z, t); return; }
   if (!z.asleep && !(z.type === 'mother' || z.type === 'apc' || z.type === 'tower')){
     const gid = z.named && z.named.ghost, gim = gid && sprImg(gid);
-    const zim = gim ? tinted(gim, gid, '#5f9a4a', .45) : sprImg(zSprKey(z)); if (zim){ drawZSpr(z, t, zim); return; } }
+    let zim = gim ? tinted(gim, gid, '#5f9a4a', .45) : sprImg(zSprKey(z));
+    if (zim && z.type === 'brute') zim = bigImg(tinted(zim, 'brute', '#a0502a', .3), 'brute', 1.4);
+    if (zim){ drawZSpr(z, t, zim); return; } }
   if (!z.asleep && drawSpecial(z,t)) return;
   const d = ZT[z.type], x = P(z.x), y = P(z.y) + Math.sin(t/300+z.id)*1;
   if (z.asleep){ if (z.type === 'scare') drawScarecrow(z.x, z.y, z.marked); else if (z.type === 'diver') drawDiver(z); else drawCorpse(z.x,z.y,(z.id%10)/10, z.marked); return; }
@@ -2840,7 +2895,7 @@ function renderUI(full){
 function defaultHint(){
   if (!S || !S.ctrl) return '';
   const c = S.ctrl;
-  return `지금 조종: <b style="color:${c.color}">${c.name}</b> · 땅 클릭 = 이동 · 감염자 클릭 = 공격 · 대원 카드 클릭 = 조종 바꾸기 · 멈춰 서면 다들 둘레를 지켜요 · 쓰러진 대원 클릭 = 가까운 대원이 업으러 가요`;
+  return `지금 조종: <b style="color:${c.color}">${c.name}</b> · 쓰러진 대원을 누르면 업으러 가요`;
 }
 function switchCtrl(h){
   if (!h || h.boarded || h.downed || h.left || h.noFight) return;
@@ -3624,7 +3679,7 @@ window.DBG = {
   win(){ if (S.obj === 'loot'){ for (const b of S.boxes.filter(b => b.kind !== 'bonus' && b.kind !== 'part').slice(0, S.need)) { b.taken = true; S.delivered.push(b); } } if (S.obj === 'boss'){ S.bossDead = true; } if (S.obj === 'hold') S.holdDone = true;
     for (const h of S.humans) if (!h.downed) { h.x = 2.5; h.y = 9.5; } S.ctrl.x = 2.5; finish('depart'); },
   newCampaign(){ newCampaign(); goNode(); }, goNode, titleScreen,
-  api: { dist, pathTo, makeNoise, active, outside },
+  api: { dist, pathTo, makeNoise, active, outside, laneDodge },
 };
 window.addEventListener('resize', () => { const d = Math.min(2, window.devicePixelRatio||1); if (d !== DPR) groundCache = null; sizeCanvas(); });
 titleScreen();

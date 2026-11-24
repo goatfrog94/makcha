@@ -13,6 +13,8 @@ window.botPlay = function(maxSec = 300){
   while (!S.over && t < maxSec){
     let c = S.ctrl;
     if (!c || c.downed || c.boarded || c.left){ const n = A.active().find(h => !h.noFight); if (!n){ DBG.run(1); t++; continue; } DBG.switchCtrl(n); c = n; }
+    const dg = A.laneDodge && A.laneDodge(c);
+    if (dg){ DBG.moveCtrl(Math.floor(dg.x), Math.floor(dg.y)); DBG.run(.5); t += .5; continue; }
     if (c.carrying || c.box || done()){ if (!c.path.length) DBG.moveCtrl(2, 9); if (done()) DBG.order('bus'); }
     else if (!rescue(c) && S.obj !== 'hold'){
       let tgt = null;
