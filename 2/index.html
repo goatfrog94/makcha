@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>막차 2 — 시제품</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css">
+<style>
+  html,body{margin:0;height:100%;background:#07080c;color:#fbefd9;font-family:"Galmuri11","Malgun Gothic",sans-serif;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;image-rendering:pixelated;background:#000}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<script>
+(() => {
+'use strict';
+/* =====================================================================
+   막차 2 — 횡스크롤 시네마틱 액션 시제품
+   관절 인형: 자세(각도 묶음)를 정해 두고 그 사이를 부드럽게 이어 그려요.
+   ===================================================================== */
+const VW = 480, VH = 270, GROUND = 232, LW = 1640;
+const buf = document.createElement('canvas'); buf.width = VW; buf.height = VH;
+const g = buf.getContext('2d');
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let SC = 2;
+function fit(){
+  const s = Math.max(1, Math.min(innerWidth / VW, innerHeight / VH));
+  SC = s; cv.width = Math.round(VW * s); cv.height = Math.round(VH * s);
+}
+addEventListener('resize', fit); fit();
+
+/* ---------------- 소리 ---------------- */
+let AC = null;
+function ac(){ if (!AC){ try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } return AC; }
+function tone(f, t, type = 'square', v = .06, slide = 0, delay = 0){
+  const a = ac(); if (!a) return; const t0 = a.currentTime + delay;
+  const o = a.createOscillator(), gn = a.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t0 + t);
+  gn.gain.setValueAtTime(v, t0); gn.gain.exponentialRampToValueAtTime(.0001, t0 + t); o.connect(gn).connect(a.destination); o.start(t0); o.stop(t0 + t + .02);
+}
+function noise(t, v = .3, freq = 1200){
+  const a = ac(); if (!a) return; const n = a.sampleRate * t, b = a.createBuffer(1, n, a.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random()*2 - 1) * (1 - i/n);
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), gn = a.createGain(); f.type = 'lowpass'; f.frequency.value = freq; gn.gain.value = v;
+  s.buffer = b; s.connect(f).connect(gn).connect(a.destination); s.start();
+}
+const SFX = {
+  swing(){ noise(.12, .18, 2500); }, hit(){ noise(.08, .5, 700); tone(110, .1, 'square', .08, -50); },
+  block(){ tone(1400, .08, 'square', .05); tone(900, .12, 'triangle', .05); }, parry(){ tone(1800, .1, 'square', .06); tone(2400, .2, 'triangle', .05, 0, .05); },
+  grab(){ tone(120, .4, 'sawtooth', .06, -40); }, hurt(){ tone(220, .2, 'sawtooth', .07, -120); }, jump(){ tone(300, .08, 'square', .03, 200); },
+  land(){ noise(.06, .2, 400); }, step(){ noise(.03, .06, 600); }, groan(){ tone(90 + Math.random()*40, .5, 'sawtooth', .03, -20); },
+  pick(){ tone(500, .1, 'triangle', .05); tone(700, .12, 'triangle', .05, 0, .1); }, win(){ [523,659,784,1046].forEach((f,i) => tone(f, .3, 'triangle', .07, 0, i*.12)); },
+  climb(){ noise(.1, .12, 900); }, break(){ noise(.15, .4, 1500); tone(600, .15, 'square', .05, 300); },
+};
+const sfx = n => { try { SFX[n](); } catch(e){} };
+
+/* ---------------- 관절 인형 ---------------- */
+// 자세: y(엉덩이 높이 보정, +가 아래), r(몸 전체 회전), t(몸통 앞으로 숙임), h(고개),
+// aF/fF 앞팔 위·아래 마디, aB/fB 뒷팔, lF/kF 앞다리 허벅지·무릎 굽힘, lB/kB 뒷다리, w(무기 각도)
+const KEYS = ['y','r','t','h','aF','fF','aB','fB','lF','kF','lB','kB','w'];
+const L = { thigh:10, shin:10, torso:14, ua:8, fa:8, neck:2, head:5.5 };
+const D2R = Math.PI / 180;
+const P = o => { const p = {}; for (const k of KEYS) p[k] = o[k] || 0; return p; };
+const ease = x => x < .5 ? 2*x*x : 1 - Math.pow(-2*x + 2, 2) / 2;
+function lerpPose(a, b, k){ const p = {}; for (const key of KEYS) p[key] = a[key] + (b[key] - a[key]) * k; return p; }
+
+const A = {};   // 동작 묶음: { keys:[[자세, 초], ...], loop }
+const clip = (name, keys, loop = false) => { A[name] = { keys: keys.map(([p, d]) => [P(p), d]), loop }; };
+// ── 사람
+clip('idle', [[{ t:2, aF:8, fF:12, aB:-8, fB:12, lF:3, lB:-3 }, .9], [{ t:4, y:.6, aF:11, fF:16, aB:-5, fB:16, lF:3, lB:-3, kF:3, kB:3 }, .9]], true);
+clip('run', [
+  [{ t:14, y:1, aF:-42, fF:70, aB:48, fB:40, lF:38, kF:12, lB:-32, kB:70 }, .1],
+  [{ t:13, y:-1.5, aF:-8, fF:60, aB:12, fB:50, lF:8, kF:60, lB:-6, kB:20 }, .1],
+  [{ t:14, y:1, aF:48, fF:40, aB:-42, fB:70, lF:-32, kF:70, lB:38, kB:12 }, .1],
+  [{ t:13, y:-1.5, aF:12, fF:50, aB:-8, fB:60, lF:-6, kF:20, lB:8, kB:60 }, .1]], true);
+clip('skid', [[{ t:-18, y:3, aF:50, fF:30, aB:70, fB:20, lF:42, kF:8, lB:8, kB:45 }, .2]]);
+clip('jump', [[{ t:6, aF:-140, fF:25, aB:-120, fB:20, lF:40, kF:75, lB:-12, kB:55 }, .25]]);
+clip('fall', [[{ t:4, aF:-70, fF:35, aB:-95, fB:30, lF:22, kF:35, lB:-12, kB:45 }, .25]]);
+clip('land', [[{ y:9, t:28, aF:35, fF:30, aB:22, fB:30, lF:62, kF:105, lB:28, kB:95 }, .08], [{ y:3, t:12, aF:15, fF:20, aB:5, fB:20, lF:25, kF:40, lB:5, kB:35 }, .14]]);
+clip('hang', [[{ t:-2, aF:-178, fF:0, aB:-172, fB:0, lF:6, kF:12, lB:-8, kB:22 }, .6], [{ t:2, aF:-176, fF:0, aB:-174, fB:0, lF:-4, kF:20, lB:4, kB:12 }, .6]], true);
+clip('climb', [
+  [{ t:0, aF:-178, aB:-172, lF:6, kF:12, lB:-8, kB:22 }, .22],
+  [{ t:18, aF:-120, fF:-95, aB:-115, fB:-95, lF:70, kF:95, lB:20, kB:70 }, .22],
+  [{ y:6, t:38, aF:30, fF:40, aB:20, fB:40, lF:95, kF:125, lB:15, kB:95 }, .22],
+  [{ t:6, aF:10, fF:15, aB:-6, fB:15, lF:5, lB:-5 }, .14]]);
+clip('climbdown', [
+  [{ y:6, t:38, aF:30, fF:40, aB:20, fB:40, lF:95, kF:125, lB:15, kB:95 }, .18],
+  [{ t:18, aF:-120, fF:-95, aB:-115, fB:-95, lF:70, kF:95, lB:20, kB:70 }, .18],
+  [{ t:0, aF:-178, aB:-172, lF:6, kF:12, lB:-8, kB:22 }, .16]]);
+clip('swing1', [
+  [{ t:-12, y:1, aF:-165, fF:-35, aB:25, fB:30, lF:22, kF:12, lB:-22, kB:25, w:-20 }, .12],
+  [{ t:24, y:2.5, aF:75, fF:0, aB:-25, fB:30, lF:34, kF:22, lB:-26, kB:12, w:10 }, .08],
+  [{ t:16, y:1.5, aF:40, fF:15, aB:-12, fB:25, lF:28, kF:18, lB:-22, kB:18 }, .26]]);
+clip('swing2', [
+  [{ t:18, y:2, aF:80, fF:0, aB:-20, fB:30, lF:30, kF:20, lB:-24, kB:15, w:20 }, .08],
+  [{ t:-8, y:0, aF:-130, fF:-10, aB:10, fB:30, lF:25, kF:10, lB:-25, kB:20, w:-30 }, .09],
+  [{ t:2, y:1, aF:-30, fF:30, aB:0, fB:25, lF:15, kF:10, lB:-15, kB:15 }, .3]]);
+clip('airatk', [[{ t:10, aF:-170, fF:-20, aB:-60, fB:30, lF:50, kF:80, lB:5, kB:60 }, .12], [{ t:35, aF:110, fF:-10, aB:-30, fB:30, lF:50, kF:75, lB:10, kB:65 }, .1]]);
+clip('block', [[{ t:-8, y:3, aF:70, fF:95, aB:55, fB:100, lF:24, kF:24, lB:-24, kB:24, h:-8, w:-80 }, .07]]);
+clip('hurt', [[{ t:-28, h:-18, y:1, aF:-35, fF:25, aB:-65, fB:20, lF:14, kF:8, lB:-16, kB:32 }, .1], [{ t:-10, h:-5, aF:0, fF:20, aB:-20, fB:20, lF:8, lB:-8, kB:15 }, .3]]);
+clip('grabbed', [[{ t:-16, y:2, aF:62, fF:90, aB:52, fB:95, lF:30, kF:30, lB:-32, kB:12, h:-8 }, .12], [{ t:-22, y:2, aF:52, fF:100, aB:62, fB:85, lF:26, kF:35, lB:-28, kB:16, h:-14 }, .12]], true);
+clip('down', [[{ r:-82, y:16, t:0, h:-10, aF:-150, fF:10, aB:-110, fB:20, lF:8, kF:10, lB:-6, kB:20 }, .35]]);
+clip('pickup', [[{ y:9, t:72, aF:82, fF:5, aB:70, fB:10, lF:52, kF:92, lB:2, kB:82 }, .4], [{ y:3, t:20, aF:-40, fF:110, aB:-30, fB:110, lF:20, kF:30, lB:-10, kB:30 }, .35]]);
+clip('carry', [[{ t:16, aF:-40, fF:110, aB:-30, fB:110, lF:3, lB:-3 }, .6]], true);
+clip('carryrun', [
+  [{ t:18, y:1, aF:-40, fF:110, aB:-30, fB:110, lF:28, kF:10, lB:-24, kB:55 }, .15],
+  [{ t:17, y:-1, aF:-40, fF:110, aB:-30, fB:110, lF:6, kF:45, lB:-4, kB:15 }, .15],
+  [{ t:18, y:1, aF:-40, fF:110, aB:-30, fB:110, lF:-24, kF:55, lB:28, kB:10 }, .15],
+  [{ t:17, y:-1, aF:-40, fF:110, aB:-30, fB:110, lF:-4, kF:15, lB:6, kB:45 }, .15]], true);
+clip('carried', [[{ r:88, y:2, t:0, h:25, aF:80, fF:5, aB:95, fB:5, lF:85, kF:15, lB:72, kB:8 }, .5], [{ r:90, y:2, t:0, h:30, aF:86, fF:8, aB:100, fB:8, lF:88, kF:18, lB:76, kB:10 }, .5]], true);
+clip('lying', [[{ r:-84, y:16, h:-20, aF:-150, fF:10, aB:-100, fB:30, lF:5, kF:15, lB:-6, kB:10 }, 1.2], [{ r:-84, y:16, h:-16, aF:-145, fF:14, aB:-98, fB:34, lF:5, kF:15, lB:-6, kB:10 }, 1.2]], true);
+// ── 감염자
+clip('zidle', [[{ t:26, h:18, aF:65, fF:12, aB:55, fB:12, lF:6, kF:8, lB:-8, kB:12 }, .8], [{ t:30, h:24, y:.6, aF:70, fF:16, aB:58, fB:16, lF:6, kF:10, lB:-8, kB:14 }, .8]], true);
+clip('shamble', [
+  [{ t:26, h:18, y:.5, aF:72, fF:10, aB:58, fB:14, lF:22, kF:6, lB:-14, kB:30 }, .32],
+  [{ t:30, h:24, y:-.5, aF:66, fF:14, aB:62, fB:10, lF:2, kF:20, lB:-2, kB:8 }, .32],
+  [{ t:26, h:18, y:.5, aF:72, fF:10, aB:58, fB:14, lF:-14, kF:30, lB:22, kB:6 }, .32],
+  [{ t:30, h:24, y:-.5, aF:66, fF:14, aB:62, fB:10, lF:-2, kF:8, lB:2, kB:20 }, .32]], true);
+clip('zrun', [
+  [{ t:34, h:10, y:1, aF:-30, fF:40, aB:60, fB:30, lF:45, kF:10, lB:-35, kB:80 }, .09],
+  [{ t:32, h:10, y:-2, aF:20, fF:30, aB:20, fB:30, lF:10, kF:65, lB:-5, kB:25 }, .09],
+  [{ t:34, h:10, y:1, aF:60, fF:30, aB:-30, fB:40, lF:-35, kF:80, lB:45, kB:10 }, .09],
+  [{ t:32, h:10, y:-2, aF:20, fF:30, aB:20, fB:30, lF:-5, kF:25, lB:10, kB:65 }, .09]], true);
+clip('zwind', [[{ t:-12, h:-12, y:-1, aF:-155, fF:25, aB:-140, fB:30, lF:16, kF:8, lB:-22, kB:24 }, .3]]);
+clip('zlunge', [[{ t:42, h:8, y:1, aF:92, fF:0, aB:82, fB:5, lF:40, kF:18, lB:-42, kB:12 }, .1]]);
+clip('zhold', [[{ t:32, h:20, aF:82, fF:45, aB:72, fB:45, lF:26, kF:12, lB:-30, kB:15 }, .14], [{ t:36, h:28, aF:86, fF:40, aB:76, fB:40, lF:28, kF:14, lB:-30, kB:15 }, .14]], true);
+clip('zswing', [[{ t:-5, aF:-130, fF:30, aB:30, fB:20, lF:20, kF:10, lB:-25, kB:25 }, .2], [{ t:40, aF:95, fF:0, aB:-20, lF:38, kF:20, lB:-35, kB:10 }, .08], [{ t:30, aF:60, fF:10, aB:10, lF:25, kF:15, lB:-25, kB:15 }, .3]]);
+clip('zstag', [[{ t:-32, h:-24, aF:-45, fF:30, aB:55, fB:20, lF:15, kF:5, lB:-20, kB:35 }, .08], [{ t:-8, h:0, aF:30, fF:20, aB:40, fB:20, lF:10, kF:10, lB:-12, kB:20 }, .4]]);
+clip('zreach', [[{ t:-10, h:-35, aF:-160, fF:20, aB:-145, fB:30, lF:4, lB:-6, kB:8 }, .3], [{ t:-6, h:-30, aF:-145, fF:30, aB:-165, fB:20, lF:4, lB:-6, kB:8 }, .3]], true);
+clip('zdie', [[{ t:-30, h:-20, aF:-60, fF:20, aB:40, lF:20, lB:-20, kB:40 }, .12], [{ r:-55, y:10, t:-10, aF:-120, aB:-60, lF:30, kF:40, lB:-10, kB:30 }, .18], [{ r:-88, y:17, h:-10, aF:-150, fF:20, aB:-100, fB:20, lF:10, kF:10, lB:-5, kB:20 }, .2]]);
+
+function animSet(o, name){ if (o.anim.name === name) return; o.anim.prev = o.pose; o.anim.name = name; o.anim.t = 0; o.anim.blend = 0; }
+function animEval(name, t){
+  const c = A[name]; let total = 0; for (const k of c.keys) total += k[1];
+  let tt = c.loop ? t % total : Math.min(t, total - 1e-4);
+  for (let i = 0; i < c.keys.length; i++){
+    const [p, d] = c.keys[i];
+    if (tt <= d){ const nx = c.keys[i + 1] ? c.keys[i + 1][0] : (c.loop ? c.keys[0][0] : p); return lerpPose(p, nx, ease(tt / d)); }
+    tt -= d;
+  }
+  return c.keys[c.keys.length - 1][0];
+}
+function animStep(o, dt){
+  const a = o.anim; a.t += dt; a.blend = Math.min(1, a.blend + dt / .09);
+  const tgt = animEval(a.name, a.t);
+  o.pose = a.prev && a.blend < 1 ? lerpPose(a.prev, tgt, ease(a.blend)) : tgt;
+}
+// 뼈 위치 계산 (오른쪽을 보는 기준 → 방향에 따라 뒤집기)
+function bones(p){
+  const hip = [0, -(L.thigh + L.shin) + p.y];
+  const dn = (a, len, o) => [o[0] + Math.sin(a*D2R)*len, o[1] + Math.cos(a*D2R)*len];
+  const kneeF = dn(p.lF, L.thigh, hip), footF = dn(p.lF - p.kF, L.shin, kneeF);
+  const kneeB = dn(p.lB, L.thigh, hip), footB = dn(p.lB - p.kB, L.shin, kneeB);
+  const sh = [hip[0] + Math.sin(p.t*D2R)*L.torso, hip[1] - Math.cos(p.t*D2R)*L.torso];
+  const head = [sh[0] + Math.sin((p.t + p.h)*D2R)*(L.neck + L.head), sh[1] - Math.cos((p.t + p.h)*D2R)*(L.neck + L.head)];
+  const elF = dn(p.aF + p.t*.4, L.ua, sh), hF = dn(p.aF + p.t*.4 + p.fF, L.fa, elF);
+  const elB = dn(p.aB + p.t*.4, L.ua, sh), hB = dn(p.aB + p.t*.4 + p.fB, L.fa, elB);
+  const pts = { hip, kneeF, footF, kneeB, footB, sh, head, elF, hF, elB, hB };
+  if (p.r){ const c = Math.cos(p.r*D2R), s = Math.sin(p.r*D2R);
+    for (const k in pts){ if (k === 'hip') continue; const [x, y] = pts[k], dx = x - hip[0], dy = y - hip[1]; pts[k] = [hip[0] + dx*c - dy*s, hip[1] + dx*s + dy*c]; } }
+  pts.faAng = (p.aF + p.t*.4 + p.fF + p.w) * D2R;
+  return pts;
+}
+function limb(a, b, w, col){ g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+function drawPuppet(x, y, face, pose, look, alpha = 1){
+  const b = bones(pose);
+  g.save(); g.translate(Math.round(x), Math.round(y)); g.scale(face * (look.sc || 1), look.sc || 1); g.globalAlpha = alpha;
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  // 뒤쪽 팔다리 (조금 어둡게)
+  limb(b.hip, b.kneeB, 5, look.pantsD); limb(b.kneeB, b.footB, 4.2, look.pantsD); limb(b.footB, [b.footB[0] + 2.5, b.footB[1]], 3, look.shoe);
+  limb(b.sh, b.elB, 4, look.shirtD); limb(b.elB, b.hB, 3.4, look.skinD);
+  // 몸통·머리
+  limb(b.hip, b.sh, 7.5, look.shirt);
+  if (look.vest) limb([b.hip[0] + (b.sh[0]-b.hip[0])*.15, b.hip[1] + (b.sh[1]-b.hip[1])*.15], [b.hip[0] + (b.sh[0]-b.hip[0])*.9, b.hip[1] + (b.sh[1]-b.hip[1])*.9], 3, look.vest);
+  g.fillStyle = look.skin; g.beginPath(); g.arc(b.head[0], b.head[1], L.head, 0, Math.PI*2); g.fill();
+  if (look.hair){ g.fillStyle = look.hair; g.beginPath(); g.arc(b.head[0] - .8, b.head[1] - .8, L.head + .4, Math.PI*.95, Math.PI*2.05); g.fill(); if (look.long){ g.fillRect(b.head[0] - 5.5, b.head[1] - 1, 3, 7); } }
+  if (look.cap){ g.fillStyle = look.cap; g.fillRect(b.head[0] - 5.5, b.head[1] - 6.5, 11, 3); g.fillRect(b.head[0] + 2, b.head[1] - 4.2, 5, 1.6); }
+  g.fillStyle = look.eye || '#1a1410'; g.fillRect(Math.round(b.head[0] + 2.2), Math.round(b.head[1] - 1), 1.6, 1.6);
+  // 앞쪽 다리·팔
+  limb(b.hip, b.kneeF, 5, look.pants); limb(b.kneeF, b.footF, 4.2, look.pants); limb(b.footF, [b.footF[0] + 2.5, b.footF[1]], 3, look.shoe);
+  limb(b.sh, b.elF, 4, look.shirt); limb(b.elF, b.hF, 3.4, look.skin);
+  if (look.wpn){ const a = b.faAng; const e = [b.hF[0] + Math.sin(a)*9, b.hF[1] + Math.cos(a)*9]; limb(b.hF, e, 2.2, '#9aa3ad'); g.fillStyle = '#c9d1db'; g.beginPath(); g.arc(e[0], e[1], 2.2, 0, Math.PI*2); g.fill(); }
+  g.restore();
+  return b;
+}
+const LOOK = {
+  man:{ skin:'#e2b48a', skinD:'#b98d68', shirt:'#2f6f4e', shirtD:'#245539', vest:'#f2c14e', pants:'#3b3f4a', pantsD:'#2a2d35', shoe:'#1b1b1f', hair:'#3a2e26', cap:'#2a5a40', wpn:true },
+  yuri:{ skin:'#f0c8a8', skinD:'#c9a283', shirt:'#f4a6c6', shirtD:'#c9829f', pants:'#f4a6c6', pantsD:'#c9829f', shoe:'#eee', hair:'#2a1c18', long:true },
+  walker:{ skin:'#8fa27a', skinD:'#6f8060', shirt:'#5d5a52', shirtD:'#46443e', pants:'#3d4048', pantsD:'#2e3036', shoe:'#222', hair:'#2b2b2b', eye:'#ffcf4a' },
+  walker2:{ skin:'#93a681', skinD:'#728262', shirt:'#7a3b3b', shirtD:'#5e2d2d', pants:'#2d3a52', pantsD:'#222c3e', shoe:'#222', hair:'#4a3a2a', eye:'#ffcf4a' },
+  runner:{ skin:'#a0a983', skinD:'#7d8466', shirt:'#c0602e', shirtD:'#934823', pants:'#33363c', pantsD:'#26282c', shoe:'#111', eye:'#ff6a4a' },
+};
+
+/* ---------------- 무대 ---------------- */
+// 단단한 상자: 위에 올라설 수 있고, 모서리에 매달릴 수 있어요
+const BOXES = [
+  { x:250, y:213, w:58, h:19, kind:'car', col:'#7a2f2f' },
+  { x:560, y:180, w:74, h:6, kind:'roof' },
+  { x:780, y:197, w:96, h:35, kind:'truck', col:'#c8c2b4' },
+  { x:1010, y:150, w:150, h:82, kind:'wall' },
+  { x:1240, y:213, w:58, h:19, kind:'car', col:'#2d4f7a' },
+];
+const BUS_X = 1490;
+
+/* ---------------- 상태 ---------------- */
+let S;
+function newGame(){
+  S = {
+    t:0, over:null, msg:null, shake:0, hitstop:0, slow:0, camX:1150, spawnT:14,
+    p:{ x:1440, y:GROUND, vx:0, vy:0, face:-1, st:'ground', act:null, actT:0, onG:true, hp:5, inv:0, carry:false, grabMeter:0, grabBy:null, biteT:0, blockT:-9, combo:0, queued:false, anim:{ name:'idle', t:0, blend:1 }, pose:P({}) },
+    yuri:{ x:92, y:GROUND, st:'down', face:1, anim:{ name:'lying', t:0, blend:1 }, pose:P({}) },
+    zs:[], fx:[], says:[],
+  };
+  const z0 = [['walker',150],['walker2',420],['runner',700],['walker',680],['walker2',950],['walker',1200],['runner',1330]];
+  for (const [k, x] of z0) addZ(k, x);
+  say(S.p, '유리 씨가 저쪽에 쓰러져 있어! (←)', 3.5);
+}
+function addZ(kind, x){
+  const run = kind === 'runner';
+  S.zs.push({ kind, x, y:GROUND, vx:0, vy:0, face:-1, hp: run ? 2 : 3, st:'idle', t:0, run, spd: run ? 62 : 16 + Math.random()*6, cd:1 + Math.random(), groanT:2 + Math.random()*5, anim:{ name:'zidle', t:Math.random(), blend:1 }, pose:P({}) });
+}
+function say(o, text, dur = 2.2, col = '#fbefd9'){ S.says = S.says.filter(s => s.o !== o); S.says.push({ o, text, until:S.t + dur, col }); }
+
+/* ---------------- 입력 ---------------- */
+const K = {}, PR = {};
+const MAP = { ArrowLeft:'L', KeyA:'L', ArrowRight:'R', KeyD:'R', ArrowUp:'U', KeyW:'U', ArrowDown:'D', KeyS:'D', KeyZ:'atk', KeyJ:'atk', KeyX:'blk', KeyK:'blk', KeyE:'use', KeyC:'use', KeyR:'restart', Space:'U' };
+addEventListener('keydown', e => { const k = MAP[e.code]; if (!k) return; e.preventDefault(); if (!K[k]) PR[k] = true; K[k] = true; ac(); if (k === 'restart') newGame(); });
+addEventListener('keyup', e => { const k = MAP[e.code]; if (k) K[k] = false; });
+
+/* ---------------- 충돌 ---------------- */
+const HW = 5, HH = 42;
+const overlap = (x, y, b) => x + HW > b.x && x - HW < b.x + b.w && y > b.y && y - HH < b.y + b.h;
+function moveBody(o, dt, solid = true){
+  o.x += o.vx * dt;
+  o.x = Math.max(8, Math.min(LW - 8, o.x));
+  o.vy += 820 * dt; o.y += o.vy * dt; const wasG = o.onG; o.onG = false;
+  if (o.y >= GROUND){ o.y = GROUND; o.vy = 0; o.onG = true; }
+  if (o.dropT > 0) o.dropT -= dt;
+  else if (solid) for (const b of BOXES) if (o.x + HW > b.x && o.x - HW < b.x + b.w && o.vy >= 0 && o.y >= b.y && o.y - o.vy*dt <= b.y + 1){ o.y = b.y; o.vy = 0; o.onG = true; }
+  return !wasG && o.onG;
+}
+const standBox = o => BOXES.find(b => Math.abs(o.y - b.y) < .5 && o.x + HW > b.x && o.x - HW < b.x + b.w);
+
+/* ---------------- 박만석 ---------------- */
+function act(p, name, dur){ p.act = name; p.actT = 0; p.actDur = dur; }
+function stepPlayer(dt){
+  const p = S.p; p.inv -= dt;
+  const dir = (K.R ? 1 : 0) - (K.L ? 1 : 0);
+  // 붙잡힘: 좌우를 번갈아 누르거나 휘두르기를 연타해서 뿌리쳐요
+  if (p.st === 'grabbed'){
+    const z = p.grabBy;
+    if (PR.L || PR.R || PR.atk){ if ((PR.L && p.lastMash !== 'L') || (PR.R && p.lastMash !== 'R') || PR.atk){ p.grabMeter += .16; p.lastMash = PR.L ? 'L' : PR.R ? 'R' : 'Z'; sfx('step'); S.shake = Math.max(S.shake, 1.5); } }
+    p.grabMeter = Math.max(0, p.grabMeter - dt * .22); p.biteT -= dt;
+    animSet(p, 'grabbed');
+    if (p.grabMeter >= 1 || !z || z.dead){ freeFromGrab(true); }
+    else if (p.biteT <= 0){ hurtPlayer(1, z, true); p.biteT = 2.2; say(p, pick(['으악! 놔!','이게 어디서…!']), 1.4, '#ff9b9b'); }
+    return;
+  }
+  if (p.st === 'down'){ animSet(p, 'down'); p.vx *= .9; moveBody(p, dt); return; }
+  if (p.st === 'hang'){
+    animSet(p, 'hang');
+    if (PR.U && !p.carry){ p.st = 'climb'; p.actT = 0; animSet(p, 'climb'); sfx('climb'); p.cl = { x0:p.x, y0:p.y, x1:p.hangBox.x + (p.face > 0 ? 8 : p.hangBox.w - 8) + (p.face > 0 ? 0 : 0), y1:p.hangBox.y, b:p.hangBox }; if (p.face < 0) p.cl.x1 = p.hangBox.x + p.hangBox.w - 8; else p.cl.x1 = p.hangBox.x + 8; }
+    else if (PR.D){ p.st = 'air'; p.vy = 30; p.x -= p.face * 2; animSet(p, 'fall'); }
+    return;
+  }
+  if (p.st === 'climb' || p.st === 'climbdown'){
+    p.actT += dt; const T = p.st === 'climb' ? .8 : .52, k = Math.min(1, p.actT / T), c = p.cl;
+    const kk = p.st === 'climb' ? k : 1 - k;
+    const up = Math.min(1, kk / .55), fw = Math.max(0, (kk - .45) / .55);
+    p.x = c.x0 + (c.x1 - c.x0) * ease(fw); p.y = c.y0 + (c.y1 - c.y0) * ease(up);
+    if (k >= 1){ if (p.st === 'climb'){ p.st = 'ground'; p.y = c.y1; p.x = c.x1; p.onG = true; p.vx = 0; } else { p.st = 'hang'; p.x = c.x0; p.y = c.y0; p.hangBox = c.b; } }
+    return;
+  }
+  if (p.st === 'hurt'){ p.actT += dt; p.vx *= .88; moveBody(p, dt); animSet(p, 'hurt'); if (p.actT > .4) p.st = p.onG ? 'ground' : 'air'; return; }
+
+  // 행동 (휘두르기, 줍기, 내려놓기, 착지)
+  if (p.act){
+    p.actT += dt;
+    if (p.act === 'swing1' || p.act === 'swing2'){
+      const hitAt = p.act === 'swing1' ? .12 : .1, hitEnd = hitAt + .1;
+      p.vx = p.face * (p.actT < hitEnd ? 26 : 4);
+      if (p.actT >= hitAt && !p.hitDone){ p.hitDone = true; sfx('swing'); strikeZ(p.act === 'swing2' ? 1 : 1); }
+      if (PR.atk && p.actT > hitAt) p.queued = true;
+      if (p.actT >= p.actDur){ if (p.queued && p.act === 'swing1'){ startSwing('swing2'); } else { p.act = null; } }
+    } else if (p.act === 'pickup'){ p.vx = 0; if (p.actT > .45 && !p.carry){ p.carry = true; S.yuri.st = 'carried'; sfx('pick'); say(p, '꽉 잡아, 유리 씨!', 2); say(S.yuri, '기사님…', 1.6, '#f4a6c6'); } if (p.actT >= .75) p.act = null; }
+    else if (p.act === 'putdown'){ p.vx = 0; if (p.actT >= .35){ p.act = null; } }
+    else if (p.act === 'land'){ p.vx *= .8; if (p.actT >= .22) p.act = null; }
+    else if (p.act === 'skid'){ p.vx *= .86; if (p.actT >= .2){ p.act = null; p.face = -p.face; } }
+    moveBody(p, dt);
+    animSet(p, p.act || 'idle');
+    return;
+  }
+
+  if (p.st === 'air'){
+    p.vx += dir * 260 * dt; p.vx = Math.max(-78, Math.min(78, p.vx));
+    if (PR.atk && !p.carry && !p.airAtk){ p.airAtk = true; sfx('swing'); }
+    const landed = moveBody(p, dt);
+    if (p.airAtk) airStrike(p);
+    if (landed){ p.st = 'ground'; const hard = p.fallV > 260; p.airAtk = false; sfx('land'); if (hard || p.carry){ act(p, 'land', .22); } }
+    else { p.fallV = p.vy; if (!p.carry) tryLedge(p); }
+    if (p.st === 'air') animSet(p, p.airAtk ? 'airatk' : p.vy < 0 ? 'jump' : 'fall');
+    return;
+  }
+
+  // 땅 위
+  const spd = p.carry ? 42 : 80;
+  if (K.blk && !p.carry){
+    if (PR.blk) p.blockT = S.t;
+    p.vx *= .7; moveBody(p, dt); animSet(p, 'block'); p.blocking = true; return;
+  }
+  p.blocking = false;
+  if (PR.use){ if (p.carry) putDown(); else if (S.yuri.st === 'down' && Math.abs(S.yuri.x - p.x) < 26 && Math.abs(S.yuri.y - p.y) < 6){ p.face = S.yuri.x > p.x ? 1 : -1; act(p, 'pickup', .75); animSet(p, 'pickup'); return; } }
+  if (PR.atk && !p.carry){ startSwing('swing1'); return; }
+  if (PR.U && !p.carry){ p.vy = -238; p.st = 'air'; p.onG = false; sfx('jump'); moveBody(p, dt); animSet(p, 'jump'); return; }
+  if (PR.D && p.carry){ const b = standBox(p); if (b){ p.dropT = .25; p.st = 'air'; p.vy = 20; return; } }
+  if (PR.D && !p.carry){ const b = standBox(p); if (b){ const nearL = p.x - b.x < 12, nearR = b.x + b.w - p.x < 12; if (nearL || nearR){ startClimbDown(p, b, nearL ? -1 : 1); return; } p.dropT = .25; p.st = 'air'; p.vy = 20; return; } }
+  if (dir){
+    if (dir !== Math.sign(p.vx) && Math.abs(p.vx) > 50){ act(p, 'skid', .2); animSet(p, 'skid'); return; }
+    p.face = dir; p.vx += dir * 520 * dt; p.vx = Math.max(-spd, Math.min(spd, p.vx));
+  } else { p.vx *= Math.pow(.0008, dt); if (Math.abs(p.vx) < 2) p.vx = 0; }
+  moveBody(p, dt);
+  if (!p.onG){ p.st = 'air'; p.fallV = 0; }
+  const moving = Math.abs(p.vx) > 6;
+  animSet(p, p.carry ? (moving ? 'carryrun' : 'carry') : (moving ? 'run' : 'idle'));
+  if (moving){ p.stepT = (p.stepT || 0) - dt; if (p.stepT <= 0){ p.stepT = p.carry ? .3 : .2; sfx('step'); } }
+}
+function startSwing(name){ const p = S.p; act(p, name, name === 'swing1' ? .46 : .47); p.hitDone = false; p.queued = false; animSet(p, name); }
+function startClimbDown(p, b, side){
+  p.face = -side; const x0 = side < 0 ? b.x - HW - 1 : b.x + b.w + HW + 1;
+  p.cl = { x0, y0:b.y + HH + 4, x1:p.x, y1:b.y, b }; p.st = 'climbdown'; p.actT = 0; animSet(p, 'climbdown'); sfx('climb');
+}
+function tryLedge(p){
+  if (p.vy < -90) return;
+  const handY = p.y - HH - 3;
+  for (const b of BOXES){
+    if (b.h < 6) {}
+    const cx = p.face > 0 ? b.x : b.x + b.w, front = p.x + p.face * HW;
+    if (Math.abs(front - cx) <= 6 && handY >= b.y - 6 && handY <= b.y + 10){
+      p.st = 'hang'; p.vx = 0; p.vy = 0; p.hangBox = b; p.x = cx - p.face * (HW + 1); p.y = b.y + HH + 4; sfx('climb'); animSet(p, 'hang'); return;
+    }
+  }
+}
+function putDown(){
+  const p = S.p; p.carry = false; const y = S.yuri; y.st = 'down'; y.x = p.x + p.face * 10; y.y = p.y; y.face = p.face; act(p, 'putdown', .35); animSet(p, 'pickup');
+}
+function dropCarry(){ const p = S.p; if (!p.carry) return; p.carry = false; const y = S.yuri; y.st = 'down'; y.x = p.x - p.face * 8; y.y = p.y; say(y, '아…!', 1.2, '#f4a6c6'); }
+function hurtPlayer(dmg, from, bite){
+  const p = S.p; if (p.inv > 0 && !bite) return;
+  p.hp -= dmg; p.inv = 1; sfx('hurt'); S.shake = 4; addFx(p.x, p.y - 30, 'blood');
+  if (p.hp <= 0){ p.hp = 0; dropCarry(); if (p.grabBy){ p.grabBy.st = 'idle'; p.grabBy = null; } p.st = 'down'; p.act = null; S.over = 'lose'; S.overT = S.t; say(p, '여기까진가…', 3, '#ff9b9b'); return; }
+  if (!bite){ dropCarry(); p.st = 'hurt'; p.actT = 0; p.act = null; p.vx = (from ? Math.sign(p.x - from.x) : -p.face) * 70; p.vy = -60; }
+}
+function freeFromGrab(won){
+  const p = S.p, z = p.grabBy; p.grabBy = null; p.st = 'ground'; p.grabMeter = 0; p.inv = .6;
+  if (z && !z.dead){ z.st = 'stag'; z.t = 0; z.long = 1; z.vx = Math.sign(z.x - p.x) * 90; z.vy = -40; animSet(z, 'zstag'); sfx('break'); S.shake = 3; }
+  if (won) say(p, pick(['저리 가!','어딜!','놔라!']), 1.2);
+}
+
+/* ---------------- 공격 판정 ---------------- */
+function strikeZ(dmg){
+  const p = S.p; let hit = false;
+  for (const z of S.zs){ if (z.dead || z.dying) continue;
+    const dx = (z.x - p.x) * p.face;
+    if (dx > -4 && dx < 26 && Math.abs(z.y - p.y) < 22){ hitZ(z, dmg, p.face); hit = true; } }
+  if (hit){ S.hitstop = .06; S.shake = 2.5; }
+}
+function airStrike(p){
+  if (p.vy <= 40) return;
+  for (const z of S.zs){ if (z.dead || z.dying) continue;
+    if (Math.abs(z.x - p.x) < 14 && p.y > z.y - 46 && p.y < z.y - 10){ hitZ(z, 2, Math.sign(z.x - p.x) || p.face); p.vy = -150; p.airAtk = false; S.hitstop = .08; S.shake = 4; say(p, '이얍!', 1); return; } }
+}
+function hitZ(z, dmg, dir){
+  z.hp -= dmg; sfx('hit'); addFx(z.x + dir*-2, z.y - 30, 'spark'); addFx(z.x, z.y - 26, 'blood');
+  if (z.st === 'hold'){ if (S.p.grabBy === z) freeFromGrab(false); }
+  if (z.hp <= 0){ z.dying = true; z.st = 'die'; z.t = 0; z.vx = dir * 50; z.vy = -50; animSet(z, 'zdie'); if (Math.random() < .5) say(S.p, pick(['…어, 미안.','관절은 소중한 건데.','22년 렌치 짬밥이다.','휴…']), 1.6); return; }
+  z.st = 'stag'; z.t = 0; z.vx = dir * 60; z.vy = -30; animSet(z, 'zstag');
+}
+
+/* ---------------- 감염자 ---------------- */
+function stepZ(z, dt){
+  const p = S.p; z.t += dt;
+  if (z.dead){ z.fade -= dt; return; }
+  if (z.dying){ z.vx *= .9; moveBody(z, dt, false); if (z.t > .55){ z.dead = true; z.fade = 9; animSet(z, 'lying'); } return; }
+  const dx = p.x - z.x, ad = Math.abs(dx), dy = z.y - p.y;
+  const pAlive = p.st !== 'down';
+  if (z.st === 'stag'){ z.vx *= .9; moveBody(z, dt, false); if (z.t > (z.long || .5)){ z.st = 'idle'; z.long = 0; } return; }
+  if (z.st === 'hold'){ z.face = Math.sign(dx) || z.face; z.x = p.x - z.face * 11; animSet(z, 'zhold'); if (p.grabBy !== z){ z.st = 'idle'; } return; }
+  if (z.st === 'wind'){
+    z.vx = 0; moveBody(z, dt, false); animSet(z, z.run ? 'zswing' : 'zwind');
+    const wt = z.run ? .26 : .7;
+    if (z.t >= wt){ z.st = 'lunge'; z.t = 0; z.vx = z.face * (z.run ? 40 : 120); if (!z.run) sfx('grab'); }
+    return;
+  }
+  if (z.st === 'lunge'){
+    z.vx *= .9; moveBody(z, dt, false); if (!z.run) animSet(z, 'zlunge');
+    if (z.t > .06 && !z.struck){
+      const near = Math.abs(p.x - z.x) < 20 && Math.abs(p.y - z.y) < 18 && pAlive && p.st !== 'climb' && p.st !== 'hang';
+      if (near){ z.struck = true; resolveAttack(z); }
+    }
+    if (z.t > (z.run ? .35 : .3)){ z.st = 'rec'; z.t = 0; z.struck = false; }
+    return;
+  }
+  if (z.st === 'rec'){ z.vx *= .8; moveBody(z, dt, false); animSet(z, z.run ? 'zswing' : 'zidle'); if (z.t > (z.run ? .4 : .7)){ z.st = 'idle'; z.cd = .5 + Math.random()*.8; } return; }
+  // 걷기·쫓기
+  z.cd -= dt; z.groanT -= dt; if (z.groanT <= 0){ z.groanT = 5 + Math.random()*7; if (ad < 260) sfx('groan'); if (Math.random() < .35 && ad < 240) say(z, pick(z.run ? ['막차… 막차…','늦었어…!'] : ['출출하다…','집에… 가야지…','호두과자… 하나…']), 1.6, '#b9d7a8'); }
+  if (!pAlive || ad > 280){ z.vx *= .8; moveBody(z, dt, false); animSet(z, 'zidle'); return; }
+  z.face = Math.sign(dx) || z.face;
+  if (dy > 12 && ad < 40){ z.vx *= .7; moveBody(z, dt, false); animSet(z, 'zreach'); return; }     // 박만석이 높은 곳에 있으면 손만 뻗어요
+  const reach = z.run ? 22 : 24;
+  if (ad < reach && Math.abs(dy) < 14 && z.cd <= 0){ z.st = 'wind'; z.t = 0; z.vx = 0; z.face = Math.sign(dx) || z.face; return; }
+  if (ad > (z.run ? 14 : 16)){ z.vx = z.face * z.spd; } else z.vx *= .7;
+  moveBody(z, dt, false); if (z.bump && z.onG && z.run){ z.bump = false; z.vy = -200; }
+  animSet(z, z.run ? 'zrun' : (Math.abs(z.vx) > 3 ? 'shamble' : 'zidle'));
+}
+function resolveAttack(z){
+  const p = S.p;
+  const facingZ = Math.sign(z.x - p.x) === p.face;
+  if (p.blocking && facingZ){
+    if (S.t - p.blockT < .22){ // 딱 맞춰 막으면 받아치기
+      z.st = 'stag'; z.t = 0; z.long = 1.3; z.vx = -z.face * 110; z.vy = -60; animSet(z, 'zstag'); sfx('parry'); S.slow = .35; S.shake = 3; addFx((p.x + z.x)/2, p.y - 32, 'flash'); say(p, '어림없지!', 1.2, '#ffd166');
+    } else { z.st = 'stag'; z.t = 0; z.long = .45; z.vx = -z.face * 60; animSet(z, 'zstag'); sfx('block'); addFx((p.x + z.x)/2, p.y - 32, 'spark'); p.vx = z.face * 50; }
+    return;
+  }
+  if (p.inv > 0) return;
+  if (z.run){ hurtPlayer(1, z); return; }
+  // 비틀이: 붙잡아요
+  dropCarry();
+  p.st = 'grabbed'; p.grabBy = z; p.grabMeter = 0; p.biteT = 1.6; p.act = null; p.vx = 0; p.face = Math.sign(z.x - p.x) || p.face;
+  z.st = 'hold'; z.t = 0; sfx('grab'); S.shake = 3; say(z, '크아아…!', 1.2, '#b9d7a8');
+}
+
+/* ---------------- 효과 ---------------- */
+function addFx(x, y, kind){
+  if (kind === 'spark') for (let i = 0; i < 6; i++) S.fx.push({ x, y, vx:(Math.random()-.5)*120, vy:(Math.random()-.8)*100, t:.25, c:'#ffe08a', s:1.5 });
+  if (kind === 'blood') for (let i = 0; i < 5; i++) S.fx.push({ x, y, vx:(Math.random()-.5)*70, vy:-Math.random()*60, t:.5, c:'#7a1a1a', s:2, grav:true });
+  if (kind === 'flash') S.fx.push({ x, y, t:.25, ring:true, c:'#fff3c4' });
+}
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+/* ---------------- 진행 ---------------- */
+function step(dt){
+  if (S.over){ S.t += dt; stepPlayer(dt); for (const z of S.zs) { animStep(z, dt); } animStep(S.p, dt); return; }
+  S.t += dt;
+  stepPlayer(dt);
+  for (const z of S.zs) stepZ(z, dt);
+  S.zs = S.zs.filter(z => !(z.dead && z.fade <= 0));
+  // 감염자끼리 너무 겹치지 않게
+  for (let i = 0; i < S.zs.length; i++) for (let j = i + 1; j < S.zs.length; j++){ const a = S.zs[i], b = S.zs[j]; if (a.dead || b.dead || a.dying || b.dying) continue; const d = b.x - a.x; if (Math.abs(d) < 9 && Math.abs(a.y - b.y) < 10){ const push = (9 - Math.abs(d)) / 2 * (d >= 0 ? 1 : -1); a.x -= push; b.x += push; } }
+  // 유리
+  const y = S.yuri;
+  if (y.st === 'carried'){ y.x = S.p.x; y.y = S.p.y; y.face = S.p.face; animSet(y, 'carried'); } else animSet(y, 'lying');
+  // 더 오는 감염자
+  S.spawnT -= dt;
+  if (S.spawnT <= 0){ S.spawnT = 11; if (S.zs.filter(z => !z.dead && !z.dying).length < 7){ const side = Math.random() < .5 ? -1 : 1; const x = Math.max(20, Math.min(LW - 20, S.camX + (side < 0 ? -30 : VW + 30))); addZ(Math.random() < .3 ? 'runner' : Math.random() < .5 ? 'walker' : 'walker2', x); } }
+  // 목표
+  if (S.p.carry && S.p.x > BUS_X && S.p.onG){ S.over = 'win'; S.overT = S.t; sfx('win'); say(S.p, '7번 막차, 출발합니다!', 4, '#ffd166'); say(S.yuri, '…고마워요, 기사님.', 4, '#f4a6c6'); S.yuri.st = 'bus'; S.p.carry = false; }
+  if (!S.p.carry && S.yuri.st === 'down' && S.p.x > BUS_X && !S.toldBus){ S.toldBus = true; say(S.p, '유리 씨를 두고 갈 순 없지.', 2.4); }
+  if (S.p.x < BUS_X - 60) S.toldBus = false;
+  for (const f of S.fx){ f.t -= dt; if (f.vx !== undefined){ f.x += f.vx*dt; f.y += f.vy*dt; if (f.grav) f.vy += 300*dt; } }
+  S.fx = S.fx.filter(f => f.t > 0);
+  animStep(S.p, dt); animStep(y, dt); for (const z of S.zs) animStep(z, dt);
+}
+
+/* ---------------- 그리기 ---------------- */
+function drawBg(cx){
+  const sky = g.createLinearGradient(0, 0, 0, VH); sky.addColorStop(0, '#0b1024'); sky.addColorStop(.7, '#1b1a33'); sky.addColorStop(1, '#2a1f2e');
+  g.fillStyle = sky; g.fillRect(0, 0, VW, VH);
+  g.fillStyle = '#e8e2c8'; g.beginPath(); g.arc(380 - cx*.03, 40, 12, 0, Math.PI*2); g.fill();
+  // 먼 빌딩
+  for (let i = 0; i < 30; i++){ const x = i*70 - (cx*.25) % 70 - 70, h = 60 + ((i*37 + Math.floor(cx*.25/70)*13) % 70);
+    g.fillStyle = '#141a2e'; g.fillRect(x, GROUND - 40 - h, 52, h + 40);
+    g.fillStyle = 'rgba(255,214,120,.35)'; for (let w = 0; w < 6; w++) if ((i*7 + w*3) % 5 === 0) g.fillRect(x + 6 + (w%3)*15, GROUND - 30 - h + Math.floor(w/3)*14 + 10, 4, 5); }
+  // 가까운 건물 벽
+  for (let i = 0; i < 24; i++){ const x = i*110 - (cx*.6) % 110 - 110; g.fillStyle = i % 2 ? '#1d2233' : '#222739'; g.fillRect(x, GROUND - 120, 100, 120);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + 10, GROUND - 100, 30, 26); g.fillRect(x + 56, GROUND - 100, 30, 26); }
+}
+function drawWorld(cx){
+  g.save(); g.translate(-Math.round(cx), 0);
+  // 가로등
+  for (let x = 120; x < LW; x += 230){ g.fillStyle = '#333a48'; g.fillRect(x, GROUND - 92, 3, 92); g.fillRect(x - 10, GROUND - 92, 14, 3);
+    const lg = g.createRadialGradient(x - 8, GROUND - 88, 2, x - 8, GROUND - 40, 70); lg.addColorStop(0, 'rgba(255,220,150,.35)'); lg.addColorStop(1, 'rgba(255,220,150,0)'); g.fillStyle = lg; g.beginPath(); g.moveTo(x - 8, GROUND - 88); g.lineTo(x - 50, GROUND); g.lineTo(x + 34, GROUND); g.fill(); }
+  // 땅
+  g.fillStyle = '#2b2d36'; g.fillRect(0, GROUND, LW, VH - GROUND); g.fillStyle = '#3a3d48'; g.fillRect(0, GROUND, LW, 4);
+  g.fillStyle = '#c9b45a'; for (let x = 0; x < LW; x += 40) g.fillRect(x, GROUND + 18, 20, 2);
+  // 정류장 표지
+  g.fillStyle = '#2e7d32'; g.fillRect(BUS_X - 40, GROUND - 70, 4, 70); g.fillRect(BUS_X - 52, GROUND - 82, 28, 16); g.fillStyle = '#fff'; g.font = '8px "Galmuri11",sans-serif'; g.fillText('7', BUS_X - 41, GROUND - 71);
+  // 버스
+  const bx = BUS_X + 10; g.fillStyle = '#1f5f3a'; g.fillRect(bx, GROUND - 58, 150, 52); g.fillStyle = '#2e8b57'; g.fillRect(bx, GROUND - 58, 150, 8);
+  g.fillStyle = S.over === 'win' ? '#ffe9a8' : '#b8d8f0'; for (let i = 0; i < 6; i++) g.fillRect(bx + 22 + i*21, GROUND - 46, 16, 14);
+  g.fillStyle = '#121418'; g.fillRect(bx + 4, GROUND - 46, 14, 40); g.fillStyle = '#111'; for (const wx of [bx + 30, bx + 120]){ g.beginPath(); g.arc(wx, GROUND - 6, 8, 0, Math.PI*2); g.fill(); }
+  g.fillStyle = '#ffd166'; g.fillRect(bx + 2, GROUND - 56, 10, 6); g.fillStyle = '#000'; g.font = '6px sans-serif'; g.fillText('7', bx + 5, GROUND - 51);
+  // 상자들
+  for (const b of BOXES){
+    if (b.kind === 'car'){ g.fillStyle = b.col; g.fillRect(b.x, b.y + 5, b.w, b.h - 9); g.fillRect(b.x + 10, b.y, b.w - 22, 7); g.fillStyle = '#9fc3dc'; g.fillRect(b.x + 13, b.y + 1, b.w - 28, 4); g.fillStyle = '#111'; g.beginPath(); g.arc(b.x + 12, b.y + b.h - 3, 5, 0, Math.PI*2); g.arc(b.x + b.w - 12, b.y + b.h - 3, 5, 0, Math.PI*2); g.fill(); }
+    else if (b.kind === 'roof'){ g.fillStyle = '#4b5263'; g.fillRect(b.x, b.y, b.w, b.h); g.fillStyle = '#3a404e'; g.fillRect(b.x + 4, b.y + b.h, 3, GROUND - b.y - b.h); g.fillRect(b.x + b.w - 7, b.y + b.h, 3, GROUND - b.y - b.h);
+      g.fillStyle = 'rgba(160,200,230,.25)'; g.fillRect(b.x + 8, b.y + 10, b.w - 16, 30); g.fillStyle = '#6b5a3a'; g.fillRect(b.x + 14, GROUND - 14, b.w - 28, 3); }
+    else if (b.kind === 'truck'){ g.fillStyle = b.col; g.fillRect(b.x, b.y, b.w - 24, b.h - 6); g.fillStyle = '#8a3b2b'; g.fillRect(b.x + b.w - 24, b.y + 10, 24, b.h - 16); g.fillStyle = '#9fc3dc'; g.fillRect(b.x + b.w - 18, b.y + 13, 12, 8);
+      g.fillStyle = '#111'; g.beginPath(); g.arc(b.x + 16, GROUND - 4, 6, 0, Math.PI*2); g.arc(b.x + b.w - 12, GROUND - 4, 6, 0, Math.PI*2); g.fill(); g.fillStyle = '#555'; g.font = '7px sans-serif'; g.fillText('택배', b.x + 20, b.y + 18); }
+    else if (b.kind === 'wall'){ g.fillStyle = '#3d3a40'; g.fillRect(b.x, b.y, b.w, b.h); g.fillStyle = '#4b474f'; g.fillRect(b.x, b.y, b.w, 4);
+      g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1; for (let yy = b.y + 10; yy < b.y + b.h; yy += 9){ g.beginPath(); g.moveTo(b.x, yy); g.lineTo(b.x + b.w, yy); g.stroke(); }
+      g.fillStyle = '#9a9690'; g.font = '7px sans-serif'; g.fillText('고가 진입로', b.x + 40, b.y + 30); }
+  }
+  // 사람·감염자
+  for (const z of S.zs) if (z.dead) drawPuppet(z.x, z.y, z.face, z.pose, LOOK[z.kind], Math.min(1, z.fade / 2));
+  const y = S.yuri;
+  if (y.st === 'down') drawPuppet(y.x, y.y, y.face, y.pose, LOOK.yuri);
+  for (const z of S.zs) if (!z.dead) drawPuppet(z.x, z.y, z.face, z.pose, LOOK[z.kind]);
+  const p = S.p;
+  const flick = p.inv > 0 && p.st !== 'grabbed' && Math.floor(S.t * 20) % 2;
+  const pb = drawPuppet(p.x, p.y, p.face, p.pose, LOOK.man, flick ? .5 : 1);
+  if (y.st === 'carried'){ const sx = p.x + pb.sh[0] * p.face, sy = p.y + pb.sh[1]; drawPuppet(sx - p.face * 2, sy + 21, -p.face, y.pose, LOOK.yuri); }
+  // 효과
+  for (const f of S.fx){ if (f.ring){ g.strokeStyle = f.c; g.lineWidth = 2; g.globalAlpha = f.t / .25; g.beginPath(); g.arc(f.x, f.y, 6 + (1 - f.t/.25) * 16, 0, Math.PI*2); g.stroke(); g.globalAlpha = 1; } else { g.fillStyle = f.c; g.fillRect(f.x, f.y, f.s, f.s); } }
+  g.restore();
+}
+function drawHud(){
+  const s = SC, cx = S.camX;
+  ctx.save(); ctx.textBaseline = 'middle';
+  // 말풍선
+  ctx.font = `${Math.round(6*s)}px "Galmuri11","Malgun Gothic",sans-serif`;
+  for (const q of S.says){ if (S.t > q.until) continue; const o = q.o;
+    const x = (o.x - cx) * s, yy = (o.y - (o === S.yuri && S.yuri.st === 'down' ? 20 : 56)) * s; const w = ctx.measureText(q.text).width + 10*s/2;
+    ctx.fillStyle = 'rgba(16,14,20,.88)'; ctx.fillRect(x - w/2, yy - 6*s, w, 10*s); ctx.strokeStyle = q.col; ctx.lineWidth = Math.max(1, s/2); ctx.strokeRect(x - w/2, yy - 6*s, w, 10*s);
+    ctx.fillStyle = q.col; ctx.textAlign = 'center'; ctx.fillText(q.text, x, yy - s); }
+  // 체력·목표
+  ctx.textAlign = 'left'; ctx.font = `${Math.round(7*s)}px "Galmuri11",sans-serif`;
+  for (let i = 0; i < 5; i++){ ctx.fillStyle = i < S.p.hp ? '#ef5350' : '#3a2a2a'; ctx.fillText('♥', (8 + i*9) * s, 12 * s); }
+  const goal = S.p.carry ? '유리 씨를 업고 버스로 →' : S.yuri.st === 'down' ? '쓰러진 유리 씨에게 ←  (E 업기)' : '';
+  ctx.fillStyle = '#ffe9a8'; ctx.fillText(goal, 60 * s, 12 * s);
+  // 붙잡힘
+  if (S.p.st === 'grabbed'){ const w = 120*s, x = (VW/2)*s - w/2, yy = 40*s; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(x - 4, yy - 12*s, w + 8, 24*s);
+    ctx.fillStyle = '#ffd166'; ctx.textAlign = 'center'; ctx.fillText('← → 번갈아 연타! 뿌리쳐요', VW/2*s, yy - 4*s); ctx.fillStyle = '#3a2a2a'; ctx.fillRect(x, yy + 3*s, w, 5*s); ctx.fillStyle = '#9ff0c0'; ctx.fillRect(x, yy + 3*s, w * Math.min(1, S.p.grabMeter), 5*s); }
+  // 조작
+  ctx.textAlign = 'center'; ctx.font = `${Math.round(5.5*s)}px "Galmuri11",sans-serif`; ctx.fillStyle = 'rgba(251,239,217,.75)';
+  ctx.fillText('← → 이동   ↑ 점프·오르기   ↓ 내려가기   Z 렌치   X 막기(딱 맞추면 받아치기)   E 업기·내려놓기   R 다시', VW/2*s, (VH - 8)*s);
+  // 끝
+  if (S.over && S.t - S.overT > 1.2){ ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(0, (VH/2 - 26)*s, VW*s, 52*s); ctx.textAlign = 'center';
+    ctx.font = `${Math.round(13*s)}px "Galmuri11",sans-serif`; ctx.fillStyle = S.over === 'win' ? '#ffd166' : '#ff8a8a'; ctx.fillText(S.over === 'win' ? '구출 성공 — 7번 막차 출발' : '여기까지…', VW/2*s, (VH/2 - 6)*s);
+    ctx.font = `${Math.round(6*s)}px "Galmuri11",sans-serif`; ctx.fillStyle = '#fbefd9'; ctx.fillText('R 을 누르면 다시 해요', VW/2*s, (VH/2 + 12)*s); }
+  if (S.t < 4 && !S.over){ ctx.font = `${Math.round(10*s)}px "Galmuri11",sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = `rgba(255,212,0,${Math.min(1, (4 - S.t))})`; ctx.fillText('막차 2 — 시제품 「그날 밤, 정류장」', VW/2*s, 34*s); }
+  ctx.restore();
+}
+function draw(){
+  const p = S.p; const want = Math.max(0, Math.min(LW - VW, p.x - VW/2 + p.face * 40)); S.camX += (want - S.camX) * .08;
+  const sh = S.shake > 0 ? (Math.random() - .5) * S.shake : 0;
+  drawBg(S.camX); g.save(); g.translate(sh, sh * .5); drawWorld(S.camX); g.restore();
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(buf, 0, 0, cv.width, cv.height);
+  drawHud();
+}
+
+/* ---------------- 돌리기 ---------------- */
+let last = performance.now(), acc = 0;
+function frame(now){
+  let dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (S.hitstop > 0){ S.hitstop -= dt; dt = 0; }
+  if (S.slow > 0){ S.slow -= dt; dt *= .35; }
+  S.shake = Math.max(0, S.shake - dt * 20);
+  if (window.__pause) acc = 0; else acc += dt; while (acc >= 1/120){ step(1/120); acc -= 1/120; for (const k in PR) PR[k] = false; }
+  draw(); requestAnimationFrame(frame);
+}
+newGame(); requestAnimationFrame(frame);
+window.DBG2 = { get S(){ return S; }, step, newGame, K, PR, A, buf, draw };
+})();
+</script>
+</body>
+</html>
