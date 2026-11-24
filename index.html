@@ -2602,7 +2602,9 @@ function drawSpr(im, x, y, e, t, face){
     if (Math.abs(dx) > .03) e._fx = dx < 0 ? -1 : 1;
     e._sx = e.x; e._sy = e.y; e._st = t; }
   if (face) e._fx = face;
-  const bob = e._mv ? Math.round(Math.abs(Math.sin(t/85 + (e.id||0)))*2) : 0;
+  // 사람 id는 글자('man')라서 숫자로 쓰면 NaN이 돼 그림이 사라졌어요 → 사람마다 고정된 숫자를 따로 써요
+  if (e._seed === undefined) e._seed = typeof e.id === 'number' ? e.id : Math.random() * 6;
+  const bob = e._mv ? Math.round(Math.abs(Math.sin(t/85 + e._seed))*2) : 0;
   ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(x), Math.round(y) + 9 - bob); ctx.scale(e._fx || 1, 1);
   ctx.drawImage(im, -Math.round(im.width/2), -im.height); ctx.restore();
   return im.height;
