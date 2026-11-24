@@ -155,6 +155,14 @@ body.wood .person .face,body.wood .chip .face{background:#e9d5aa}
 body.wood .card .bar{height:6px;border:1px solid #000;border-radius:2px;background:#1a0f0a}
 body.wood #cv{border:4px solid var(--wood-dk);box-shadow:0 0 0 3px var(--wood),0 0 0 5px #5a3920;border-radius:4px}
 body.wood .tag{border-radius:3px}
+.scene{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;image-rendering:pixelated;border:3px solid #1c120b;box-shadow:0 0 0 2px #8a5a32;border-radius:4px;margin:6px 0 8px;background:#0b0d10}
+.scene:not(.title){max-height:210px}
+.scene.title{aspect-ratio:auto}
+.titlewrap{position:relative}.titlewrap h2{position:absolute;left:50%;top:14px;transform:translateX(-50%);margin:0!important;font-size:28px!important;box-shadow:0 4px 0 #000a}
+.rline.banner{background-size:cover;background-position:center;image-rendering:pixelated;border-radius:4px}
+.rline.banner::before{content:'';position:absolute;inset:0;background:linear-gradient(rgba(0,0,0,.15),rgba(0,0,0,.45));border-radius:4px}
+.rline.banner .nm{color:#fff3d6!important;text-shadow:0 1px 0 #000,1px 0 0 #000,-1px 0 0 #000,0 -1px 0 #000}
+.rline.banner .hn{text-shadow:0 1px 0 #000}
 /* 노선도: 낡은 종이 지도 */
 body.wood .rmap{background:#dcc391;border:3px solid var(--wood-dk);box-shadow:inset 0 0 0 3px #a87a46,inset 0 0 18px #8a5a2a55;color:#3b2614;border-radius:6px}
 body.wood .rmap .dim{color:#6b5236}
@@ -390,7 +398,7 @@ function baseMap(){
   const car = (x,y,c='P') => { set(x,y,c); set(x,y+1,c); };
   return { m, set, rect, car };
 }
-const WIDEN_KEYS = ['walkers','runners','corpses','spawns','divers','mimics','towers','scares','extra','boxes','enemies','signs'];
+const WIDEN_KEYS = ['deco','walkers','runners','corpses','spawns','divers','mimics','towers','scares','extra','boxes','enemies','signs'];
 function widenDef(def){
   const wd = def.widen; if (!wd) return def;
   const sx = x => x >= wd.at ? x + wd.by : x;
@@ -466,6 +474,7 @@ const MAPS = {
       return finishMap(B); },
     signs:[[18.5,9.6,'중화요리 만리장성','#b8322a'],[9,0.6,'세탁소','#456'],[18.5,0.6,'철물점','#654'],[27.5,0.6,'PC방','#335']],
     alarm:{ x:20.5, y:8 },
+    deco:[[7,6,'vend'],[30,6,'vend'],[16,6,'vend']],
     boxes:[ { x:17.5, y:13.5, kind:'food' }, { x:20.5, y:3.5, kind:'food' }, { x:28.5, y:15.5, kind:'bonus', name:'욕심 상자 (PC방 금고)' }, { x:8.5, y:3.5, kind:'med' } ],
     walkers:[[11,8],[16,7],[22,8],[28,8],[8,13],[17,15],[27,13],[19,3],[13,14],[24,16]], nWalkers:9, runners:[[29,9],[23,13]], nRunners:1, crier:[27,3],
     corpses:[[14,8],[24,7],[9,14]], nSleepers:2,
@@ -491,6 +500,7 @@ const MAPS = {
       return finishMap(B); },
     signs:[[24.5,1.33,'편의점 24시','#1e5aa8'],[8.5,1.33,'화장실','#3d6b70'],[16.5,13.5,'주유소','#b03a2e'],[30.9,8.5,'↗ 고속도로','#2e7d32'],[28.8,2.1,'창고','#5a4532']],
     alarm:{ x:14.5, y:9 },
+    deco:[[21,8,'vend'],[22,8,'vend'],[26,8,'vend'],[12,5,'bench'],[13,5,'bench']],
     boxes:[ { x:20.5, y:5.5, kind:'food' }, { x:28.5, y:7.5, kind:'food' }, { x:20.5, y:17.5, kind:'fuel' }, { x:29.5, y:3.5, kind:'bonus', name:'욕심 상자 (창고)' }, { x:10.5, y:2.5, kind:'med', name:'약 상자 (화장실)' } ],
     walkers:[[7,10],[10,11],[13,10],[9,7],[17,9],[15,14],[19,15],[26,3],[21,7],[8,3],[28,11],[24,12],[18,6],[12,15]], nWalkers:10, runners:[[20,12],[26,10],[22,15]], nRunners:2, crier:[9,3],
     corpses:[[7,11],[13,12],[18,13],[24,10],[10,6]], nSleepers:2,
@@ -1595,10 +1605,11 @@ function drawAct3(now){
 function drawAct3Z(z,t,x,y){
   if (z.type === 'tower'){
     ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.beginPath(); ctx.ellipse(x, y+10, 12, 4, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#7d6f62'; ctx.fillRect(x-9, y-26, 18, 36); ctx.fillStyle = '#9a8b7c'; ctx.fillRect(x-9, y-26, 18, 4);
+    const tw = prop('tower'), sw = z.ringT > 0 ? Math.sin(t/60) * .5 : 0;
+    if (tw){ ctx.save(); ctx.translate(x, y + 10); ctx.rotate(sw * .08); ctx.drawImage(tw, -Math.round(tw.width/2), -tw.height); ctx.restore(); }
+    else { ctx.fillStyle = '#7d6f62'; ctx.fillRect(x-9, y-26, 18, 36); ctx.fillStyle = '#9a8b7c'; ctx.fillRect(x-9, y-26, 18, 4);
     ctx.fillStyle = '#4a3f36'; ctx.fillRect(x-6, y-20, 12, 12);
-    const sw = z.ringT > 0 ? Math.sin(t/60) * .5 : 0;
-    ctx.save(); ctx.translate(x, y-20); ctx.rotate(sw); ctx.fillStyle = '#c9a227'; ctx.beginPath(); ctx.moveTo(-5, 9); ctx.quadraticCurveTo(-5, 0, 0, 0); ctx.quadraticCurveTo(5, 0, 5, 9); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(x, y-20); ctx.rotate(sw); ctx.fillStyle = '#c9a227'; ctx.beginPath(); ctx.moveTo(-5, 9); ctx.quadraticCurveTo(-5, 0, 0, 0); ctx.quadraticCurveTo(5, 0, 5, 9); ctx.closePath(); ctx.fill(); ctx.restore(); }
     if (z.ringT > 0){ ctx.strokeStyle = `rgba(255,220,120,${z.ringT/1.6})`; ctx.lineWidth = 2; for (let r = 1; r <= 3; r++){ circ(x, y-14, r*10 + (1.6-z.ringT)*12); ctx.stroke(); } }
     const fr = Math.max(0, z.hp) / z.maxhp; ctx.fillStyle = '#000a'; ctx.fillRect(x-12, y-32, 24, 4); ctx.fillStyle = '#ffd36b'; ctx.fillRect(x-12, y-32, 24*fr, 4);
     ctx.fillStyle = '#ffe08a'; ctx.font = 'bold 9px "Malgun Gothic",sans-serif'; ctx.textAlign = 'center'; ctx.fillText('종탑', x, y+20);
@@ -1756,21 +1767,29 @@ function drawSpecial(z,t){
   if (z.type === 'apc'){
     const f = z.face || [-1,0], a = Math.atan2(f[1], f[0]);
     if (z.aim){ ctx.strokeStyle = `rgba(255,60,60,${.5+.4*Math.sin(t/80)})`; ctx.lineWidth = P(1.6); ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+z.aim.dx*P(10), y+z.aim.dy*P(10)); ctx.stroke(); }
+    const ap = prop('apc');
+    if (ap){ ctx.save(); ctx.translate(x,y); ctx.rotate(a); ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-ap.width/2+3, -ap.height/2+4, ap.width, ap.height); ctx.drawImage(ap, -Math.round(ap.width/2), -Math.round(ap.height/2));
+      ctx.fillStyle = `rgba(255,211,107,${.35+.35*Math.sin(t/200)})`; ctx.fillRect(-ap.width/2, -6, 5, 12); ctx.restore(); }
+    else {
     ctx.save(); ctx.translate(x,y); ctx.rotate(a);
     ctx.fillStyle = '#3c4a2e'; ctx.fillRect(-20,-14,40,28); ctx.fillStyle = '#56663f'; ctx.fillRect(-16,-11,32,22);
     ctx.fillStyle = '#2b3521'; circ(2,0,7); ctx.fill(); ctx.fillRect(2,-2,18,4);
     ctx.fillStyle = '#ffd36b'; ctx.fillRect(-20,-6,4,12);      // 뒤쪽 해치
-    ctx.restore();
+    ctx.restore(); }
     const fr = z.hp/z.maxhp; ctx.fillStyle='#000a'; ctx.fillRect(x-22,y-26,44,4); ctx.fillStyle='#ffcf5a'; ctx.fillRect(x-22,y-26,44*fr,4);
     ctx.fillStyle='#ffe08a'; ctx.font='bold 10px "Malgun Gothic",sans-serif'; ctx.textAlign='center'; ctx.fillText('장갑차 (노란 해치가 약점)', x, y+28);
     return true;
   }
   if (z.type === 'mother'){
-    const pulse = 1 + .06*Math.sin(t/300);
+    const pulse = 1 + .06*Math.sin(t/300), mo = prop('mother');
+    if (mo){ const sc = pulse * (S.powerOff ? .92 : 1); ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); if (S.powerOff) ctx.globalAlpha = .8;
+      ctx.drawImage(mo, -Math.round(mo.width/2), -Math.round(mo.height/2)); ctx.restore();
+      if (!S.powerOff){ ctx.strokeStyle = `rgba(160,220,255,${.25+.25*Math.sin(t/90)})`; ctx.lineWidth = 1.5; circ(x, y, P(1.9)); ctx.stroke(); } }
+    else {
     ctx.fillStyle = 'rgba(80,20,40,.5)'; circ(x,y,P(1.6)*pulse); ctx.fill();
     ctx.fillStyle = S.powerOff ? '#9a6a7a' : '#6a4a5a'; circ(x,y,P(1.1)*pulse); ctx.fill();
     ctx.strokeStyle = '#3a1a2a'; ctx.lineWidth = 3; for (let i=0;i<6;i++){ const aa = i*Math.PI/3 + t/1500; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(aa)*P(1.7), y+Math.sin(aa)*P(1.7)); ctx.stroke(); }
-    ctx.fillStyle = '#ffdd88'; circ(x-6,y-4,2.5); ctx.fill(); circ(x+6,y-4,2.5); ctx.fill();
+    ctx.fillStyle = '#ffdd88'; circ(x-6,y-4,2.5); ctx.fill(); circ(x+6,y-4,2.5); ctx.fill(); }
     const fr = z.hp/z.maxhp; ctx.fillStyle='#000a'; ctx.fillRect(x-24,y-34,48,4); ctx.fillStyle='#ff7ab0'; ctx.fillRect(x-24,y-34,48*fr,4);
     ctx.fillStyle='#ffd6f0'; ctx.font='bold 10px "Malgun Gothic",sans-serif'; ctx.textAlign='center'; ctx.fillText(S.powerOff ? '어미 (약해짐!)' : '어미 (전기가 들어와 있어 단단해요)', x, y+38);
     return true;
@@ -2400,7 +2419,7 @@ function circ(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); }
 function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 // ----- 소품 그림 (art/prop/이름.png) -----
 const PROP = {}; let propLeft = 0;
-for (const k of 'bus bus_parked car_red car_blue car_white car_taxi tree shelf pump vend bench fuel med food bonus part'.split(' ')){
+for (const k of 'bus bus_parked car_red car_blue car_white car_taxi tree shelf pump vend bench fuel med food bonus part stall desk table counter apc tower mother'.split(' ')){
   const im = new Image(); propLeft++; im.onload = im.onerror = () => { if (--propLeft === 0) groundCache = null; }; im.src = 'art/prop/' + k + '.png'; PROP[k] = im; }
 const prop = k => { const im = PROP[k]; return im && im.complete && im.naturalWidth ? im : null; };
 const CAR_SPR = ['car_red','car_blue','car_white','car_taxi'];
@@ -2462,12 +2481,19 @@ function drawGround(){
       case 'C': texTile(g, px, py, '#cfcabd', '#d8d3c6', x, y); break;
       case 'F': texTile(g, px, py, '#7d8186', '#868a8f', x, y); break;
       case 'Y': texWood(g, px, py, x, y, '#9a7a56'); break;
-      case 'H': R(px,py,TS,TS,(x+y)%2?'#8a2a3a':'#962f40'); break;
-      case 'W': R(px,py,TS,TS,'#7d6d55'); g.strokeStyle='#6a5b45'; g.strokeRect(px+.5,py+.5,TS-1,TS-1); break;
-      case 'K': R(px,py,TS,TS,S.mapId==='school' ? `rgb(${150+n*10},${122+n*8},${86+n*6})` : '#d8d3c6'); R(px,py+5,TS,TS-10,'#6b4f3a'); R(px,py+5,TS,3,'#8a6a50'); break;
-      case 'S': if (prop('shelf')){ texTile(g, px, py, '#cfcabd', '#d8d3c6', x, y); const sh = prop('shelf'); late.push(() => g.drawImage(sh, px + Math.round((TS-sh.width)/2), py + TS - sh.height)); break; }
+      case 'H': { grain(g, px, py, '#8e2c3c', .12, 3); const nb = (dx,dy) => S.map[y+dy] && S.map[y+dy][x+dx] === 'H';
+        g.fillStyle = '#d9a441'; if (!nb(-1,0)) g.fillRect(px, py, 2, TS); if (!nb(1,0)) g.fillRect(px+TS-2, py, 2, TS); if (!nb(0,-1)) g.fillRect(px, py, TS, 2); if (!nb(0,1)) g.fillRect(px, py+TS-2, TS, 2);
+        g.fillStyle = 'rgba(255,210,140,.35)'; if ((x+y)%2 === 0) g.fillRect(px+10, py+10, 4, 4); break; }
+      case 'W': texWood(g, px, py, x, y, '#8a7656'); break;
+      case 'K': { const kd = { school:'desk', base:'counter', checkpoint:'counter', restarea:'counter' }[S.mapId], ki = kd && prop(kd);
+        texTile(g, px, py, '#cfcabd', '#d8d3c6', x, y);
+        if (ki){ const top = S.map[y][x-1] === 'K'; if (!top) late.push(() => g.drawImage(ki, px + Math.round((TS-ki.width)/2) + (S.map[y][x+1] === 'K' ? TS/2 : 0), py + TS - ki.height)); break; }
+        R(px,py+5,TS,TS-10,'#6b4f3a'); R(px,py+5,TS,3,'#8a6a50'); R(px,py+TS-6,TS,1,'#4a3424'); break; }
+      case 'S': if (S.mapId === 'fishmarket' && prop('stall')){ texTile(g, px, py, '#8fa3a8', '#9db0b5', x, y); const st = prop('stall'); late.push(() => g.drawImage(st, px + Math.round((TS-st.width)/2), py + TS - st.height)); break; }
+        if (prop('shelf')){ texTile(g, px, py, '#cfcabd', '#d8d3c6', x, y); const sh = prop('shelf'); late.push(() => g.drawImage(sh, px + Math.round((TS-sh.width)/2), py + TS - sh.height)); break; }
         R(px,py,TS,TS,'#d8d3c6'); R(px+2,py+2,TS-4,TS-4,'#5a4532'); for (let i=0;i<6;i++){ g.fillStyle=['#d9534f','#f0ad4e','#5bc0de','#5cb85c','#eee'][(x*3+y+i)%5]; g.fillRect(px+4+(i%3)*6, py+4+Math.floor(i/3)*8, 4, 6); } break;
-      case 'Q': R(px,py,TS,TS,(x+y)%2?'#cfcabd':'#d8d3c6'); g.fillStyle='#f4f1ea'; g.beginPath(); g.arc(px+12,py+12,10,0,Math.PI*2); g.fill(); g.fillStyle='#e0a0b0'; g.beginPath(); g.arc(px+12,py+12,3,0,Math.PI*2); g.fill(); break;
+      case 'Q': if (prop('table')){ texTile(g, px, py, '#cfcabd', '#d8d3c6', x, y); const tb = prop('table'); late.push(() => g.drawImage(tb, px + Math.round((TS-tb.width)/2), py + TS - tb.height)); break; }
+        R(px,py,TS,TS,(x+y)%2?'#cfcabd':'#d8d3c6'); g.fillStyle='#f4f1ea'; g.beginPath(); g.arc(px+12,py+12,10,0,Math.PI*2); g.fill(); g.fillStyle='#e0a0b0'; g.beginPath(); g.arc(px+12,py+12,3,0,Math.PI*2); g.fill(); break;
       case 'V': asphalt(); { const top = S.map[y-1] && S.map[y-1][x] === 'V'; if (!top){ let len = 1; while (S.map[y+len] && S.map[y+len][x] === 'V') len++;
         const bp = prop('bus_parked'); if (bp){ late.push(() => { const h = len*TS - 2, w = Math.round(bp.width * h / bp.height); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(px + (TS-w)/2 + 3, py + 4, w, h); g.drawImage(bp, px + Math.round((TS-w)/2), py + 1, w, h); }); break; }
         late.push(() => { R(px+2,py+2,TS-4,TS*len-4,'#3d8b4f'); R(px+2,py+2,5,TS*len-4,'#2d6a3b'); for (let i=0;i<len;i++) R(px+TS-9,py+6+i*TS,5,12,'rgba(190,225,240,.7)'); }); } } break;
@@ -2482,7 +2508,12 @@ function drawGround(){
       case 'G': if (prop('pump')){ texTile(g, px, py, '#4a4e55', '#50545b', x, y); const pu = prop('pump'); late.push(() => g.drawImage(pu, px + Math.round((TS-pu.width)/2), py + TS - pu.height)); break; }
         R(px,py,TS,TS,'#4a4e55'); R(px+5,py+3,TS-10,TS-6,'#c0392b'); R(px+8,py+6,TS-16,6,'#ffe9a8'); break;
       case 'O': texTile(g, px, py, '#4a4e55', '#50545b', x, y); break;
-      case 'R': R(px,py,TS,TS,'#2e3034'); if (x === W-2 && y%2===0) R(px+TS-2,py+4,3,TS-8,'#e0b13a'); break;
+      case 'R': { grain(g, px, py, '#33363c', .12, 11); if (hsh(x*7, y) > .93){ g.fillStyle = '#2a2c31'; g.fillRect(px+5, py+9, 8, 5); }
+        let a = y, b = y; while (S.map[a-1] && S.map[a-1][x] === 'R') a--; while (S.map[b+1] && S.map[b+1][x] === 'R') b++;
+        if (b - a >= 5){ const mid = (a + b + 1) / 2, q1 = a + (b - a + 1) / 4, q3 = a + 3 * (b - a + 1) / 4;
+          if (Math.abs(y - mid) < .01) { g.fillStyle = '#e0b13a'; g.fillRect(px, py - 2, TS, 2); g.fillRect(px, py + 1, TS, 2); }
+          for (const lq of [q1, q3]) if (y === Math.floor(lq) && x % 2 === 0){ g.fillStyle = '#c9ccd1'; g.fillRect(px + 4, py + Math.round((lq - y) * TS), 14, 2); } }
+        if (x === W-2 && y%2===0) R(px+TS-2,py+4,3,TS-8,'#e0b13a'); break; }
       case 'D': texWood(g, px, py, x, y, '#8a6a46'); g.fillStyle = '#5a4430'; g.fillRect(px, py, 2, TS); g.fillRect(px+TS-2, py, 2, TS); break;
       case 'L': R(px,py,TS,TS,'#7a5230'); R(px+9,py+9,6,7,'#e0c070'); break;
       case 'Z': asphalt(); g.strokeStyle='rgba(90,230,150,.8)'; g.setLineDash([4,3]); g.strokeRect(px+2,py+2,TS-4,TS-4); g.setLineDash([]); g.fillStyle='rgba(60,200,120,.18)'; g.fillRect(px,py,TS,TS); break;
@@ -2491,15 +2522,19 @@ function drawGround(){
       case 'x': R(px,py,TS,TS,'#4b4f57'); R(px+3,py+3,TS-6,TS-6,'#2f5f9e'); R(px+3,py+3,TS-6,5,'#3f74b8'); break;
       case 'X': R(px,py,TS,TS,'#4b4f57'); R(px+3,py+3,TS-6,TS-6,'#333'); g.strokeStyle='#aaa'; g.lineWidth=2; g.beginPath(); g.arc(px+TS/2,py+TS-3,7,Math.PI,2*Math.PI); g.stroke(); break;
       case 'B': asphalt(); break;
-      case 'N': R(px,py,TS,TS,(x+y)%2?'#4f6b3a':'#557341'); g.fillStyle='#86a85e'; for (let i=0;i<3;i++) g.fillRect(px+4+i*7, py+5, 2, 13); R(px,py+TS-2,TS,2,'#3f5a30'); break;
-      case 'v': R(px,py,TS,TS, y===16 ? '#2b3027' : '#20241d'); break;
-      case 'q': R(px,py,TS,TS,(x+y)%2?'#1f4f6e':'#235775'); g.strokeStyle='rgba(180,220,240,.25)'; g.beginPath(); g.moveTo(px+3,py+8+(x%3)*4); g.quadraticCurveTo(px+12,py+4+(x%3)*4,px+21,py+8+(x%3)*4); g.stroke(); break;
+      case 'N': grain(g, px, py, '#4a5f37', .14, 5); for (let i = 0; i < 4; i++){ const cx = px + 3 + i*6; for (let j = 0; j < 3; j++){ const cy = py + 3 + j*7; g.fillStyle = '#7fa856'; g.fillRect(cx, cy, 2, 4); g.fillStyle = '#a6c46c'; g.fillRect(cx, cy, 1, 2); g.fillStyle = '#34482a'; g.fillRect(cx, cy+4, 2, 1); } } break;
+      case 'v': grain(g, px, py, y===16 ? '#2b3027' : '#1c2019', .18, 9); break;
+      case 'q': { grain(g, px, py, '#225873', .1, 13); const up = S.map[y-1] && S.map[y-1][x] !== 'q';
+        if (up){ g.fillStyle = 'rgba(220,240,250,.55)'; g.fillRect(px, py, TS, 2); g.fillStyle = 'rgba(220,240,250,.25)'; g.fillRect(px, py+3, TS, 1); }
+        for (let i = 0; i < 2; i++){ const wx = px + Math.floor(hsh(x*3+i, y)*16), wy = py + 5 + Math.floor(hsh(x, y*5+i)*14); g.fillStyle = 'rgba(190,225,245,.45)'; g.fillRect(wx, wy, 6, 1); g.fillRect(wx+2, wy-1, 2, 1); } break; }
       case 'h': R(px,py,TS,TS,'#2c3a52'); R(px,py,TS,3,'#4a5a76'); if ((x+y)%3===0) R(px+8,py+8,6,6,'rgba(255,230,150,.6)'); break;
-      case 'g': R(px,py,TS,TS,'#3a3d33'); R(px,py+8,TS,4,'#b8bcc4'); R(px+2,py+6,3,12,'#8a8e96'); break;
+      case 'g': grain(g, px, py, '#3a3d33', .15, 17); g.fillStyle = '#5d636c'; g.fillRect(px, py+13, TS, 2); g.fillStyle = '#c3c8cf'; g.fillRect(px, py+7, TS, 3); g.fillStyle = '#7d838c'; g.fillRect(px, py+10, TS, 1);
+        for (const ox of [3, 15]){ g.fillStyle = '#8a8e96'; g.fillRect(px+ox, py+5, 3, 14); g.fillStyle = '#b8bcc4'; g.fillRect(px+ox, py+5, 1, 14); } break;
     }
   }
   for (let y=0;y<H-1;y++) for (let x=0;x<W;x++) if (S.map[y][x] === '#' && S.map[y+1][x] !== '#'){ g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x*TS, (y+1)*TS, TS, 4); g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(x*TS, (y+1)*TS + 4, TS, 3); }
   for (const f of late) f();
+  for (const [x,y,k] of (S.def.deco || [])){ const im = prop(k); if (im) g.drawImage(im, Math.round(x*TS + (TS-im.width)/2), Math.round((y+1)*TS - im.height)); }
   g.font = 'bold 12px "Malgun Gothic",sans-serif'; g.textAlign = 'center';
   for (const [x,y,t,bg] of (S.def.signs||[])){ const w = g.measureText(t).width+10; g.fillStyle=bg; g.fillRect(x*TS-w/2,y*TS-9,w,15); g.fillStyle='#fff'; g.fillText(t,x*TS,y*TS+3); }
   if (!S.def.prologue && prop('bus')){ const bu = prop('bus'); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(5, 7*TS+5, bu.width, bu.height); g.drawImage(bu, 0, 7*TS); }
@@ -2904,15 +2939,18 @@ function routeHtml(){
     const ic = i < C.node ? '✓' : n.type === 'choice' && C.branches[n.id] ? '➡' : n.icon;
     return `<div class="rstop ${cls}" style="left:${i*SW}px">${i === C.node ? '<div class="rbus">🚌</div>' : ''}<div class="dot">${ic}</div><div class="nm">${nodeName(n)}</div><div class="hn">${i >= C.node ? nodeHints(n) : ''}</div></div>`; }).join('');
   return `<div class="rmap"><div class="rhead"><span>🚌 7번 막차 · ${curAct().name} · <b style="color:${gap <= 1 ? '#ff6b6b' : '#ff9b9b'}">${hl}</b></span><span>${cur ? `이번 정류장 <b>${nodeName(cur)}</b>` : '종점'}${nx ? ` · 다음 ${nodeName(nx)}` : ''}</span></div>
-    <div class="rwrap"><div class="rline" style="width:${nodes.length*SW}px"><div class="rtrack"></div><div class="rhorde" style="width:${Math.max(10, hw)}px"></div>${stops}</div></div>
+    <div class="rwrap"><div class="rline banner" style="width:${nodes.length*SW}px;background-image:url(art/scene/act${(C.act||0)+1}.png)"><div class="rtrack"></div><div class="rhorde" style="width:${Math.max(10, hw)}px"></div>${stops}</div></div>
     <div class="dim" style="font-size:11px">🙋 새 동료 · 🔧 버스 부품 · 💀 큰 싸움 · 💤 쉼</div></div>`;
 }
+// 장면 그림 (art/scene/이름.png)
+const SCENES = new Set('title act1 act2 act3 act4 store police granny gas cry bus3km fuelthief ambulance station hungry buses yoonnote bellvillage beach flooded island end_ship end_broadcast end_refuse end_true end_bitter checkpoint shelter gameover'.split(' '));
+const sceneImg = (k, cls = '') => SCENES.has(k) ? `<img class="scene ${cls}" src="art/scene/${k}.png" alt="">` : '';
 function titleScreen(){
   S = null; C = null;
   const sv = loadSave();
   const svAct = sv ? ACTS[sv.act] : null, svNode = sv && svAct ? svAct.nodes[sv.node] : null;
   showModal(`
-    <h2>🚌 막차</h2>
+    <div class="titlewrap">${sceneImg('title', 'title')}<h2>🚌 막차</h2></div>
     <div class="dim">프롤로그 · 1막 「출발」 · 2막 「검문소」 · 3막 「종소리」 · 4막 「항구」</div>
     <div class="story">23시 40분. 7번 마을버스의 마지막 운행.
 기사 박만석은 오늘도 평소처럼 막차를 몰고 있었어요.
@@ -3393,7 +3431,8 @@ function endingScreen(lines=[]){
     if (['ok','hurt'].includes(r.status)) return `<div class="person"><b style="color:${ch.color}">${ch.name}</b> <span class="dim">"${ENDING_SAY[id] || r.lastSaid || '…'}"</span></div>`;
     const why = r.status === 'home' ? '할머니 곁에 남았어요' : r.status === 'given' ? '섬에 넘겨졌어요' : '빈자리';
     return `<div class="person no"><b style="color:${ch.color}">${ch.name}</b> <span class="dim">— ${why}${r.lastSaid ? ` · 마지막 말: "${r.lastSaid}"` : ''}</span></div>`; };
-  showModal(`<h2>${title}</h2>
+  const endImg = plan === 'ship' ? 'end_ship' : plan === 'broadcast' ? 'end_broadcast' : plan === 'refuse' ? 'end_refuse' : trueOk ? 'end_true' : 'end_bitter';
+  showModal(`<h2>${title}</h2>${sceneImg(endImg)}
     ${lines.length ? `<div class="story">${lines.join('<br>')}</div>` : ''}
     <div class="story">${story}</div>
     <h3>버스 좌석</h3><div class="people">${C.roster.map(seat).join('')}</div>
@@ -3406,7 +3445,7 @@ function pickEvent(pool){ const left = pool.filter(e => !C.events.includes(e) &&
 function eventScreen(evId, head){
   const ev = EVENTS[evId];
   if (ev.pre) ev.pre();
-  showModal(`${head}<h3>${ev.title}</h3><div class="story">${ev.text}</div>
+  showModal(`${head}<h3>${ev.title}</h3>${sceneImg(evId)}<div class="story">${ev.text}</div>
     ${ev.choices.map((c,i) => { const ok = !c.need || c.need(); return `<button class="choice ${ok?'':'off'}" data-i="${i}">${c.t}<small>${c.d}${ok?'':' — 지금은 할 수 없어요'}</small></button>`; }).join('')}`);
   document.querySelectorAll('.choice').forEach(b => b.onclick = () => { const c = ev.choices[+b.dataset.i]; if (c.need && !c.need()) return; sfx('click');
     TR = { ask:0, done:0 }; const out = medTxt(c.f()); showModal(`<h3>${ev.title}</h3><div class="story">${out}</div>${resRow()}<button class="go" id="e-go">다음 정류장으로</button>`); on('#e-go', nextNode); });
@@ -3424,7 +3463,7 @@ function checkpointEvent(head){
     return '"…최 순경? 살아 있었구나." 검문소 책임자는 최 순경이 있던 파출소 반장님이었어요. 반장님은 검사 없이 버스를 통과시켜 줬어요. 💊 치료 2번, 🍚 식량 +4.\n떠나기 전, 반장님이 최 순경의 어깨를 잡고 낮게 말했어요.\n"우린 막는 게 아니야. 피난 행렬을 남쪽 항구로 보내라는 명령을 받았어. 전부 다. …이상하지 않냐?"'; } });
   ch.push({ t:'검사를 받는다', d: sus.length ? `물린 사람: ${sus.map(id => CHARS[id].name).join(', ')}` : '물린 사람은 없어요', f:check });
   if (sus.length) ch.push({ t:'물린 사람을 숨긴다', d:'들키면 그 사람을 잃어요', f:() => { if (rng() < .6) return '좌석 밑에 숨겼어요. 군인들은 대충 훑어보고 통과시켰어요.'; const id = sus[0]; C.people[id].status = 'gone'; C.stats.lost++; return `들켰어요. ${CHARS[id].name}${jo(CHARS[id].name,'이','가')} 끌려 내려갔어요.`; } });
-  showModal(`${head}<h3>🪖 군 검문소</h3><div class="story">방호복을 입은 군인들이 버스를 세워요. "한 명씩 내리세요. 물린 사람은 통과할 수 없습니다."
+  showModal(`${head}<h3>🪖 군 검문소</h3>${sceneImg('checkpoint')}<div class="story">방호복을 입은 군인들이 버스를 세워요. "한 명씩 내리세요. 물린 사람은 통과할 수 없습니다."
 그런데 이상해요. 군인들은 피난 차량을 막지 않고, 오히려 빨리 남쪽으로 가라고 손짓해요.</div>
     ${ch.map((c,i) => `<button class="choice" data-i="${i}">${c.t}<small>${c.d}</small></button>`).join('')}`);
   document.querySelectorAll('.choice').forEach(b => b.onclick = () => { sfx('click'); TR = { ask:0, done:0 }; out(ch[+b.dataset.i].f()); });
@@ -3450,7 +3489,7 @@ function branchScreen(n, head){
 }
 function shelterScreen(head){
   for (const id of alive()){ C.people[id].hp = Math.min(CHARS[id].hp, C.people[id].hp + 6); const r = C.people[id]; if (r.status === 'hurt'){ r.sit = Math.max(0, r.sit-1); if (!r.sit) r.status = 'ok'; } }
-  showModal(`${head}<div class="story">고속도로 졸음쉼터예요. 다른 피난 차량은 없어요. 오랜만에 시동을 끄고 다 같이 쉬었어요.
+  showModal(`${head}${sceneImg('shelter')}<div class="story">고속도로 졸음쉼터예요. 다른 피난 차량은 없어요. 오랜만에 시동을 끄고 다 같이 쉬었어요.
 모두 체력 +6, 중상인 사람은 한 정류장 빨리 나아요.</div><button class="go" id="sh-go">다음 정류장으로</button>`);
   on('#sh-go', nextNode);
 }
@@ -3505,7 +3544,7 @@ function actEnd(lines=[]){
 function gameOver(reason){
   clearSave();
   const n = C ? route()[Math.min(C.node, route().length-1)] : null;
-  showModal(`<h2>🌑 여정 끝</h2><div class="story">${reason}</div>
+  showModal(`<h2>🌑 여정 끝</h2>${sceneImg('gameover')}<div class="story">${reason}</div>
     <div class="dim">${C ? `${curAct().short} · ${n ? nodeName(n) : ''}까지 왔어요. ${C.stats.battles}번 싸움 · 업어서 구한 횟수 ${C.stats.carries}` : ''}</div>
     <button class="go" id="g-title">처음 화면</button>`);
   on('#g-title', titleScreen);

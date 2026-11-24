@@ -6,9 +6,16 @@ const img = P.read(src);
 // 분홍 배경 + 제미나이 반짝이 표시(연분홍)까지 배경으로 봐요
 // 배경색은 그림마다 조금씩 달라서 네 귀퉁이에서 재요
 const BG = (() => { const p = [[8,8],[img.w-9,8],[8,img.h-9],[img.w-9,img.h-9]].map(([x,y]) => (y*img.w+x)*4); return [0,1,2].map(k => p.reduce((t,o) => t + img.data[o+k], 0) / 4); })();
-const isBg = o => { const r = img.data[o], g = img.data[o+1], b = img.data[o+2];
+const likeBg = o => { const r = img.data[o], g = img.data[o+1], b = img.data[o+2];
   if (Math.hypot(r - BG[0], g - BG[1], b - BG[2]) < 75) return true;
   return (r > 200 && b > 170 && r - g > 50 && b - g > 35); };
+// 배경은 "가장자리에서 이어진 배경색"만이에요. 캐릭터 몸 안의 비슷한 색(보라색 괴물 등)은 지우지 않아요
+const BGM = new Uint8Array(img.w * img.h);
+{ const q = []; const push = i => { if (!BGM[i] && likeBg(i*4)){ BGM[i] = 1; q.push(i); } };
+  for (let x = 0; x < img.w; x++){ push(x); push((img.h-1)*img.w + x); } for (let y = 0; y < img.h; y++){ push(y*img.w); push(y*img.w + img.w-1); }
+  while (q.length){ const i = q.pop(), x = i % img.w, y = (i / img.w) | 0;
+    if (x > 0) push(i-1); if (x < img.w-1) push(i+1); if (y > 0) push(i-img.w); if (y < img.h-1) push(i+img.w); } }
+const isBg = o => BGM[o >> 2] === 1 || (img.data[o] > 200 && img.data[o+2] > 170 && img.data[o] - img.data[o+1] > 50 && img.data[o+2] - img.data[o+1] > 35 && likeBg(o));
 
 // 1) 캐릭터 덩어리 찾기: 배경이 아닌 열들의 묶음 (작은 반짝이 표시는 버려요)
 const colN = []; for (let x = 0; x < img.w; x++){ let n = 0; for (let y = 0; y < img.h; y++) if (!isBg((y*img.w+x)*4)) n++; colN.push(n); }
@@ -52,11 +59,14 @@ boxes.forEach((b, i) => {
     for (let yy = ys + my; yy < ye - my; yy++) for (let xx = xs + mx; xx < xe - mx; xx++){
       const o = (yy * img.w + xx) * 4; if (isBg(o)){ bg++; continue; } s[0] += img.data[o]; s[1] += img.data[o+1]; s[2] += img.data[o+2]; n++; }
     const p = (y * ow + x) * 4;
-    if (n > bg){ out[p] = s[0]/n; out[p+1] = s[1]/n; out[p+2] = s[2]/n; out[p+3] = 255;
-      // 분홍 배경이 번진 보랏빛 가장자리 → 어두운 테두리색으로
-      const [r, g, bb] = [out[p], out[p+1], out[p+2]];
-      if (r > g + 25 && bb > g + 25 && Math.abs(r - bb) < 70){ out[p] = 34; out[p+1] = 28; out[p+2] = 38; } }
+    if (n > bg){ out[p] = s[0]/n; out[p+1] = s[1]/n; out[p+2] = s[2]/n; out[p+3] = 255; }
   }
+  // 분홍 배경이 번진 보랏빛 → 어두운 테두리색. 단, 투명한 곳과 맞닿은 가장자리만 (보라색 몸통은 그대로)
+  const edge = (x, y) => [[1,0],[-1,0],[0,1],[0,-1]].some(([dx,dy]) => { const nx = x+dx, ny = y+dy; return nx < 0 || ny < 0 || nx >= ow || ny >= oh || !out[(ny*ow+nx)*4+3]; });
+  const fix = [];
+  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++){ const p = (y*ow+x)*4; if (!out[p+3] || !edge(x,y)) continue;
+    const [r, g, bb] = [out[p], out[p+1], out[p+2]]; if (r > g + 25 && bb > g + 25 && Math.abs(r - bb) < 70) fix.push(p); }
+  for (const p of fix){ out[p] = 34; out[p+1] = 28; out[p+2] = 38; }
   // 떨어져 있는 작은 얼룩(배경의 흐린 자국 등)은 지워요: 가장 큰 덩어리의 35%보다 작은 조각
   const lab = new Int32Array(ow * oh).fill(-1), sizes = [];
   for (let s0 = 0; s0 < ow * oh; s0++){ if (lab[s0] >= 0 || !out[s0*4+3]) continue;
